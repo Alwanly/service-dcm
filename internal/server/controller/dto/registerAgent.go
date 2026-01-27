@@ -2,6 +2,9 @@ package dto
 
 // RegisterAgentRequest represents the agent registration request
 type RegisterAgentRequest struct {
+	Hostname  string `json:"hostname,omitempty" example:"agent-01"`
+	Version   string `json:"version,omitempty" example:"1.0.0"`
+	StartTime string `json:"start_time,omitempty" example:"2026-01-27T10:00:00Z"`
 }
 
 // RegisterAgentResponse represents the agent registration response

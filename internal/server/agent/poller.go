@@ -13,17 +13,19 @@ type Poller struct {
 	client         *ControllerClient
 	interval       time.Duration
 	currentETag    string
+	agentID        string
 	onConfigChange func(*models.WorkerConfiguration)
 	logger         *logger.CanonicalLogger
 }
 
 // NewPoller creates a new poller
-func NewPoller(client *ControllerClient, interval time.Duration, onConfigChange func(*models.WorkerConfiguration)) *Poller {
+func NewPoller(client *ControllerClient, interval time.Duration, agentID string, onConfigChange func(*models.WorkerConfiguration)) *Poller {
 	log, _ := logger.NewLoggerFromEnv("agent")
 
 	return &Poller{
 		client:         client,
 		interval:       interval,
+		agentID:        agentID,
 		onConfigChange: onConfigChange,
 		logger:         log.Component("poller"),
 	}
@@ -59,7 +61,7 @@ func (p *Poller) Start(ctx context.Context) error {
 
 // poll fetches configuration from controller
 func (p *Poller) poll(ctx context.Context) error {
-	config, newETag, err := p.client.GetConfiguration(ctx, p.currentETag)
+	config, newETag, err := p.client.GetConfiguration(ctx, p.agentID, p.currentETag)
 	if err != nil {
 		return err
 	}

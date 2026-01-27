@@ -16,7 +16,10 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	"github.com/Alwanly/service-distribute-management/pkg/retry"
 )
+
+const version = "1.0.0"
 
 func main() {
 	// Initialize logger
@@ -45,11 +48,20 @@ func main() {
 		Timeout: cfg.RequestTimeout,
 	}
 
-	// Register with controller
-	client := agent.NewControllerClient(cfg.ControllerURL, cfg.AgentUsername, cfg.AgentPassword, cfg.RequestTimeout)
+	// Create controller client with retry configuration
+	log.Component("agent")
+	controllerRetryCfg := retry.Config{
+		MaxRetries:     cfg.RegistrationMaxRetries,
+		InitialBackoff: cfg.RegistrationInitialBackoff,
+		MaxBackoff:     cfg.RegistrationMaxBackoff,
+		Multiplier:     cfg.RegistrationBackoffMultiplier,
+		Jitter:         false,
+	}
+
+	client := agent.NewControllerClient(cfg.ControllerURL, cfg.AgentUsername, cfg.AgentPassword, cfg.RequestTimeout, log, controllerRetryCfg)
 
 	hostname, _ := os.Hostname()
-	regResp, err := client.Register(context.Background(), hostname)
+	regResp, err := client.Register(context.Background(), hostname, version, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		log.WithError(err).Fatal("failed to register with controller")
 	}
@@ -63,7 +75,7 @@ func main() {
 	defer cancel()
 
 	// Start configuration poller
-	poller := agent.NewPoller(client, cfg.PollInterval, func(config *models.WorkerConfiguration) {
+	poller := agent.NewPoller(client, cfg.PollInterval, regResp.AgentID, func(config *models.WorkerConfiguration) {
 		log.WithConfigVersion(config.Version).Info("received new configuration",
 			logger.String("target_url", config.TargetURL),
 		)

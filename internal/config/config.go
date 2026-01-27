@@ -28,6 +28,11 @@ type AgentConfig struct {
 	RequestTimeout time.Duration
 	AgentUsername  string
 	AgentPassword  string
+	// Registration retry configuration
+	RegistrationMaxRetries        int
+	RegistrationInitialBackoff    time.Duration
+	RegistrationMaxBackoff        time.Duration
+	RegistrationBackoffMultiplier float64
 }
 
 // LoadControllerConfig reads controller config from environment or returns defaults
@@ -81,13 +86,45 @@ func LoadAgentConfig() (*AgentConfig, error) {
 		}
 	}
 
+	maxRetries := 5
+	if v := os.Getenv("REGISTRATION_MAX_RETRIES"); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			maxRetries = i
+		}
+	}
+
+	initialBackoff := 1 * time.Second
+	if v := os.Getenv("REGISTRATION_INITIAL_BACKOFF"); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			initialBackoff = time.Duration(i) * time.Second
+		}
+	}
+
+	maxBackoff := 30 * time.Second
+	if v := os.Getenv("REGISTRATION_MAX_BACKOFF"); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			maxBackoff = time.Duration(i) * time.Second
+		}
+	}
+
+	multiplier := 2.0
+	if v := os.Getenv("REGISTRATION_BACKOFF_MULTIPLIER"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			multiplier = f
+		}
+	}
+
 	return &AgentConfig{
-		ControllerURL:  envOrDefault("CONTROLLER_URL", "http://localhost:8080"),
-		WorkerURL:      envOrDefault("WORKER_URL", "http://localhost:8082"),
-		PollInterval:   poll,
-		RequestTimeout: reqTimeout,
-		AgentUsername:  envOrDefault("AGENT_USER", "agent"),
-		AgentPassword:  envOrDefault("AGENT_PASSWORD", "agentpass"),
+		ControllerURL:                 envOrDefault("CONTROLLER_URL", "http://localhost:8080"),
+		WorkerURL:                     envOrDefault("WORKER_URL", "http://localhost:8082"),
+		PollInterval:                  poll,
+		RequestTimeout:                reqTimeout,
+		AgentUsername:                 envOrDefault("AGENT_USER", "agent"),
+		AgentPassword:                 envOrDefault("AGENT_PASSWORD", "agentpass"),
+		RegistrationMaxRetries:        maxRetries,
+		RegistrationInitialBackoff:    initialBackoff,
+		RegistrationMaxBackoff:        maxBackoff,
+		RegistrationBackoffMultiplier: multiplier,
 	}, nil
 }
 
