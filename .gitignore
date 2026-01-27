@@ -1,3 +1,30 @@
-*.md
-
 *.exe
+
+# Swagger generated documentation
+docs/controller/docs.go
+docs/controller/swagger.json
+docs/controller/swagger.yaml
+docs/worker/docs.go
+docs/worker/swagger.json
+docs/worker/swagger.yaml
+
+# Application binary
+/app
+*.log
+
+# Dependency directories
+vendor/
+# IDE files
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+# Temporary files
+*.tmp
+
+# Build directories
+bin/
+
+# Copilot files
+.copilot/

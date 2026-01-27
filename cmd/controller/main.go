@@ -1,5 +1,18 @@
 package main
 
+// @title           Service Distribute Management - Controller API
+// @version         1.0
+// @description     Controller service for distributed configuration management system. Manages agent registration and worker configuration distribution.
+// @termsOfService  http://swagger.io/terms/
+// @contact.name   API Support
+// @contact.url    http://www.example.com/support
+// @contact.email  support@example.com
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+// @host      localhost:8080
+// @BasePath  /
+// @securityDefinitions.basic  BasicAuth
+
 import (
 	"os"
 	"os/signal"
@@ -10,6 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
+	_ "github.com/Alwanly/service-distribute-management/docs/controller"
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/handler"
 	authentication "github.com/Alwanly/service-distribute-management/pkg/auth"
@@ -17,6 +31,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
+	swagger "github.com/gofiber/swagger"
 )
 
 func main() {
@@ -82,6 +97,9 @@ func main() {
 
 	// Register handlers
 	handler.NewHandler(deps)
+
+	// Swagger documentation route (accessible without authentication)
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// Start server in goroutine
 	go func() {

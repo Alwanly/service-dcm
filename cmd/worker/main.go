@@ -1,5 +1,17 @@
 package main
 
+// @title           Service Distribute Management - Worker API
+// @version         1.0
+// @description     Worker service for distributed configuration management system. Receives configuration from agents and proxies requests to target URLs.
+// @termsOfService  http://swagger.io/terms/
+// @contact.name   API Support
+// @contact.url    http://www.example.com/support
+// @contact.email  support@example.com
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+// @host      localhost:8082
+// @BasePath  /
+
 import (
 	"context"
 	"os"
@@ -11,10 +23,12 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
+	_ "github.com/Alwanly/service-distribute-management/docs/worker"
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/server/worker/handler"
 	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	swagger "github.com/gofiber/swagger"
 )
 
 func main() {
@@ -68,6 +82,9 @@ func main() {
 
 	// Initialize handler (creates full dependency chain)
 	handler.NewHandler(dependencies, cfg.RequestTimeout)
+
+	// Swagger documentation route
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	log.Info("Worker Service configured",
 		logger.String("addr", cfg.ServerAddr),

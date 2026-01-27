@@ -26,15 +26,25 @@ func NewHandler(d deps.App) *Handler {
 		UseCase: uc,
 	}
 
-	e := d.Fiber.Group("controller")
-
-	e.Post("/register", d.Middleware.BasicAuth(), h.register)
-	e.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
-	e.Get("/config", d.Middleware.BasicAuth(), h.getConfig)
+	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
+	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
+	d.Fiber.Get("/config", d.Middleware.BasicAuth(), h.getConfig)
 
 	return h
 }
 
+// register godoc
+// @Summary      Register a new agent
+// @Description  Register a new agent with the controller service and receive polling configuration
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.RegisterAgentRequest true "Agent registration details"
+// @Success      200 {object} dto.RegisterAgentResponse "Successfully registered agent"
+// @Failure      400 {object} map[string]string "Invalid request body or validation error"
+// @Failure      401 {object} map[string]string "Unauthorized - invalid agent credentials"
+// @Router       /register [post]
+// @Security     BasicAuth
 func (h *Handler) register(c *fiber.Ctx) error {
 
 	req := new(dto.RegisterAgentRequest)
@@ -51,6 +61,18 @@ func (h *Handler) register(c *fiber.Ctx) error {
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// setConfig godoc
+// @Summary      Set worker configuration
+// @Description  Set new configuration for all workers (admin only). Configuration includes target URL, headers, and timeout settings.
+// @Tags         configuration
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.SetConfigAgentRequest true "Configuration data"
+// @Success      200 {object} dto.SetConfigAgentResponse "Configuration set successfully"
+// @Failure      400 {object} map[string]string "Invalid request body or validation error"
+// @Failure      401 {object} map[string]string "Unauthorized - invalid admin credentials"
+// @Router       /config [post]
+// @Security     BasicAuth
 func (h *Handler) setConfig(c *fiber.Ctx) error {
 
 	req := new(dto.SetConfigAgentRequest)
@@ -67,6 +89,17 @@ func (h *Handler) setConfig(c *fiber.Ctx) error {
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// getConfig godoc
+// @Summary      Get current worker configuration
+// @Description  Retrieve the current configuration that will be distributed to workers
+// @Tags         configuration
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} dto.GetConfigAgentResponse "Current configuration"
+// @Failure      401 {object} map[string]string "Unauthorized - invalid agent credentials"
+// @Failure      404 {object} map[string]string "No configuration found"
+// @Router       /config [get]
+// @Security     BasicAuth
 func (h *Handler) getConfig(c *fiber.Ctx) error {
 
 	res := h.UseCase.GetConfigAgent(c.Context())
