@@ -1,4 +1,4 @@
-package server
+package worker
 
 import (
 	"bytes"
@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/Alwanly/service-distribute-management/internal/logger"
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
 // WorkerServer handles HTTP endpoints for the Worker service

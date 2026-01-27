@@ -10,11 +10,13 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
-	"github.com/Alwanly/service-distribute-management/internal/auth"
 	"github.com/Alwanly/service-distribute-management/internal/config"
-	"github.com/Alwanly/service-distribute-management/internal/logger"
-	"github.com/Alwanly/service-distribute-management/internal/server"
-	"github.com/Alwanly/service-distribute-management/internal/store"
+	"github.com/Alwanly/service-distribute-management/internal/server/controller/handler"
+	authentication "github.com/Alwanly/service-distribute-management/pkg/auth"
+	"github.com/Alwanly/service-distribute-management/pkg/database"
+	"github.com/Alwanly/service-distribute-management/pkg/deps"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	"github.com/Alwanly/service-distribute-management/pkg/middleware"
 )
 
 func main() {
@@ -39,12 +41,17 @@ func main() {
 		logger.Duration("poll_interval", cfg.PollInterval),
 	)
 
-	// Initialize authentication
-	auth.Initialize(cfg.AdminUsername, cfg.AdminPassword, cfg.AgentUsername, cfg.AgentPassword)
+	auth := middleware.SetBasicAuth(&authentication.BasicAuthTConfig{
+		Username:      cfg.AgentUsername,
+		Password:      cfg.AgentPassword,
+		AdminUsername: cfg.AdminUsername,
+		AdminPassword: cfg.AdminPassword,
+	})
+	mid := middleware.NewAuthMiddleware(auth)
 	log.Info("authentication initialized")
 
 	// Initialize database
-	db, err := store.NewDB(cfg.DatabasePath)
+	db, err := database.NewSQLiteDB(cfg.DatabasePath)
 	if err != nil {
 		log.WithError(err).Fatal("failed to initialize database")
 	}
@@ -65,12 +72,16 @@ func main() {
 	app.Use(requestid.New())
 	app.Use(loggingMiddleware(log))
 
-	// Create server
-	pollIntervalSeconds := int(cfg.PollInterval.Seconds())
-	controllerServer := server.NewControllerServer(db, pollIntervalSeconds, "")
+	// Initialize dependencies
+	deps := deps.App{
+		Fiber:      app,
+		Database:   db,
+		Logger:     log,
+		Middleware: mid,
+	}
 
-	// Setup routes
-	controllerServer.SetupRoutes(app)
+	// Register handlers
+	handler.NewHandler(deps)
 
 	// Start server in goroutine
 	go func() {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Alwanly/service-distribute-management/internal/logger"
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
 // Poller handles periodic polling of the controller
