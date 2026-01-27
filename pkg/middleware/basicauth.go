@@ -14,6 +14,9 @@ type IAuthMiddleware interface {
 
 	// Basic Auth
 	BasicAuth() fiber.Handler
+
+	// Basic Auth Admin
+	BasicAuthAdmin() fiber.Handler
 }
 
 type AuthMiddleware struct {
@@ -61,6 +64,23 @@ func (a *AuthMiddleware) BasicAuth() fiber.Handler {
 		// decode auth
 		username, password := a.Basic.DecodeFromHeader(auth)
 		if !a.Basic.Validate(username, password) {
+			return responseUnauthorized(ctx, "Basic", "Invalid auth")
+		}
+		return ctx.Next()
+	}
+}
+
+func (a *AuthMiddleware) BasicAuthAdmin() fiber.Handler {
+	return func(ctx *fiber.Ctx) error {
+		// get auth from header
+		auth := ctx.Get(fiber.HeaderAuthorization)
+		if !strings.Contains(auth, "Basic") {
+			return responseUnauthorized(ctx, "Basic", "Invalid auth")
+		}
+
+		// decode auth
+		username, password := a.Basic.DecodeFromHeader(auth)
+		if !a.Basic.ValidateAdmin(username, password) {
 			return responseUnauthorized(ctx, "Basic", "Invalid auth")
 		}
 		return ctx.Next()
