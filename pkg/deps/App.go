@@ -9,8 +9,8 @@ import (
 )
 
 type App struct {
-	Middleware *middleware.AuthMiddleware
+	Fiber      *fiber.App
 	Logger     *logger.CanonicalLogger
 	Database   *sql.DB
-	Fiber      *fiber.App
+	Middleware *middleware.AuthMiddleware
 }

@@ -12,5 +12,6 @@ type SetConfigAgentResponse struct {
 
 // GetConfigAgentResponse represents the response when retrieving configuration
 type GetConfigAgentResponse struct {
+	ETag   string      `json:"etag" example:"1"`
 	Config interface{} `json:"config" swaggertype:"object"`
 }

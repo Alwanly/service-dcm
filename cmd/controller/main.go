@@ -14,10 +14,12 @@ package main
 // @securityDefinitions.basic  BasicAuth
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
@@ -75,17 +77,15 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName:      "Controller Service",
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-		ErrorHandler: errorHandler(log),
+		AppName:               "Controller Service",
+		DisableStartupMessage: true,
+		ErrorHandler:          middleware.ErrorHandler(log),
 	})
 
 	// Add middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())
-	app.Use(loggingMiddleware(log))
+	app.Use(middleware.CanonicalLoggerMiddleware(log))
 
 	// Initialize dependencies
 	deps := deps.App{
@@ -96,60 +96,54 @@ func main() {
 	}
 
 	// Register handlers
-	handler.NewHandler(deps)
+	handler.NewHandler(deps, cfg)
 
 	// Swagger documentation route (accessible without authentication)
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	gErr, gCtx := errgroup.WithContext(ctx)
+
 	// Start server in goroutine
-	go func() {
-		log.Info("controller service listening", logger.String("addr", cfg.ServerAddr))
+	gErr.Go(func() error {
+		log.Info("controller service is running", logger.String("address", cfg.ServerAddr))
 		if err := app.Listen(cfg.ServerAddr); err != nil {
-			log.WithError(err).Fatal("server error")
+			cancel()
+			return err
 		}
+		return nil
+	})
+
+	// Shutdown goroutine
+	gErr.Go(func() error {
+		<-gCtx.Done()
+
+		if err := app.Shutdown(); err != nil {
+			log.WithError(err).Error("failed to shutdown fiber app")
+			return err
+		}
+
+		if err := db.Close(); err != nil {
+			log.WithError(err).Error("failed to close database")
+			return err
+		}
+
+		return nil
+	})
+
+	// Listen for OS signals
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+		log.Info("listening for shutdown signals")
+		<-sigChan
+		log.Info("shutdown signal received")
+		cancel()
 	}()
 
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	log.Info("shutting down controller service")
-
-	// Graceful shutdown
-	if err := app.ShutdownWithTimeout(30 * time.Second); err != nil {
-		log.WithError(err).Error("server shutdown error")
+	if err := gErr.Wait(); err != nil {
+		log.WithError(err).Fatal("controller service encountered an error")
 	}
 
-	log.Info("controller service stopped")
-}
-
-// errorHandler creates a custom Fiber error handler
-func errorHandler(log *logger.CanonicalLogger) fiber.ErrorHandler {
-	return func(c *fiber.Ctx, err error) error {
-		code := fiber.StatusInternalServerError
-		if e, ok := err.(*fiber.Error); ok {
-			code = e.Code
-		}
-
-		log.HTTPError(c.Method(), c.Path(), code, err)
-
-		return c.Status(code).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-}
-
-// loggingMiddleware logs HTTP requests
-func loggingMiddleware(log *logger.CanonicalLogger) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		start := time.Now()
-
-		err := c.Next()
-
-		duration := time.Since(start).Milliseconds()
-		log.HTTP(c.Method(), c.Path(), c.Response().StatusCode(), duration)
-
-		return err
-	}
+	log.Info("controller service stopped gracefully")
 }

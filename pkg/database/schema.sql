@@ -5,7 +5,8 @@
 -- Stores registered agent information
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY NOT NULL,
-    worker_url TEXT NOT NULL,
+    startup_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL,
     last_poll_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -31,4 +32,4 @@ CREATE INDEX IF NOT EXISTS idx_configurations_created_at ON configurations(creat
 
 -- Insert default configuration if none exists
 INSERT OR IGNORE INTO configurations (id, etag, config_data, created_at)
-VALUES (1, 'initial', '{}', CURRENT_TIMESTAMP);
+VALUES (1, '1', '{}', CURRENT_TIMESTAMP);

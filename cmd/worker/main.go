@@ -28,6 +28,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/server/worker/handler"
 	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	"github.com/Alwanly/service-distribute-management/pkg/middleware"
 	swagger "github.com/gofiber/swagger"
 )
 
@@ -56,23 +57,13 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName:               "Worker Service",
 		DisableStartupMessage: true,
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			log.Error("Fiber error handler")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-		},
+		ErrorHandler:          middleware.ErrorHandler(log),
 	})
 
 	// Setup middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())
-	// simple logging middleware
-	app.Use(func(c *fiber.Ctx) error {
-		start := time.Now()
-		err := c.Next()
-		duration := time.Since(start).Milliseconds()
-		log.HTTP(c.Method(), c.Path(), c.Response().StatusCode(), duration)
-		return err
-	})
+	app.Use(middleware.CanonicalLoggerMiddleware(log))
 
 	// Create dependency container
 	dependencies := deps.App{

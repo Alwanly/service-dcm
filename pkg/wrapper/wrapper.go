@@ -15,3 +15,12 @@ func ResponseSuccess(httpCode int, data interface{}) JSONResult {
 		Data:    data,
 	}
 }
+
+func ResponseFailed(httpCode int, message string, data interface{}) JSONResult {
+	return JSONResult{
+		Code:    httpCode,
+		Success: false,
+		Message: message,
+		Data:    data,
+	}
+}

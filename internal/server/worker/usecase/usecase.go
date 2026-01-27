@@ -13,7 +13,9 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	dto "github.com/Alwanly/service-distribute-management/internal/server/worker/dto"
 	"github.com/Alwanly/service-distribute-management/internal/server/worker/repository"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/wrapper"
+	"go.uber.org/zap"
 )
 
 // UseCaseInterface defines the business logic interface for worker operations
@@ -52,6 +54,7 @@ func (uc *UseCase) ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequ
 
 	// Update configuration in repository
 	if err := uc.repo.UpdateConfig(config); err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.JSONResult{
 			Code:    fiber.StatusInternalServerError,
 			Success: false,
@@ -68,6 +71,12 @@ func (uc *UseCase) ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequ
 		UpdatedAt: config.UpdatedAt,
 	}
 
+	logger.AddToContext(ctx,
+		zap.Int64(logger.FieldConfigVersion, config.Version),
+		zap.String(logger.FieldTargetURL, config.TargetURL),
+		zap.Bool(logger.FieldSuccess, true),
+	)
+
 	return wrapper.JSONResult{
 		Code:    fiber.StatusOK,
 		Success: true,
@@ -80,6 +89,7 @@ func (uc *UseCase) ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequ
 func (uc *UseCase) GetHealthStatus(ctx context.Context) wrapper.JSONResult {
 	config, err := uc.repo.GetCurrentConfig()
 	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.JSONResult{
 			Code:    fiber.StatusInternalServerError,
 			Success: false,
@@ -98,6 +108,12 @@ func (uc *UseCase) GetHealthStatus(ctx context.Context) wrapper.JSONResult {
 		response.TargetURL = config.TargetURL
 		response.Headers = config.Headers
 		response.LastUpdated = config.UpdatedAt
+		logger.AddToContext(ctx,
+			zap.Bool("configured", true),
+			zap.Int64(logger.FieldConfigVersion, config.Version),
+		)
+	} else {
+		logger.AddToContext(ctx, zap.Bool("configured", false))
 	}
 
 	return wrapper.JSONResult{
@@ -113,16 +129,19 @@ func (uc *UseCase) ProxyRequest(ctx context.Context, body []byte, headers map[st
 	// Get current configuration
 	config, err := uc.repo.GetCurrentConfig()
 	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return nil, fiber.StatusInternalServerError, fmt.Errorf("failed to get configuration: %w", err)
 	}
 
 	if config == nil {
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, false), zap.String(logger.FieldProxyStatus, "no_config"))
 		return nil, fiber.StatusServiceUnavailable, fmt.Errorf("worker not configured")
 	}
 
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.TargetURL, bytes.NewReader(body))
 	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false), zap.String(logger.FieldProxyStatus, "create_request_failed"))
 		return nil, fiber.StatusInternalServerError, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -143,6 +162,7 @@ func (uc *UseCase) ProxyRequest(ctx context.Context, body []byte, headers map[st
 	// Execute request
 	resp, err := uc.httpClient.Do(req)
 	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false), zap.String(logger.FieldProxyStatus, "request_failed"), zap.String(logger.FieldTargetURL, config.TargetURL), zap.Int64(logger.FieldConfigVersion, config.Version))
 		return nil, fiber.StatusBadGateway, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -150,8 +170,17 @@ func (uc *UseCase) ProxyRequest(ctx context.Context, body []byte, headers map[st
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false), zap.String(logger.FieldProxyStatus, "read_response_failed"), zap.String(logger.FieldTargetURL, config.TargetURL), zap.Int64(logger.FieldConfigVersion, config.Version))
 		return nil, fiber.StatusBadGateway, fmt.Errorf("failed to read response: %w", err)
 	}
+
+	// Success - add contextual fields
+	logger.AddToContext(ctx,
+		zap.String(logger.FieldTargetURL, config.TargetURL),
+		zap.Int64(logger.FieldConfigVersion, config.Version),
+		zap.String(logger.FieldProxyStatus, resp.Status),
+		zap.Bool(logger.FieldSuccess, true),
+	)
 
 	return respBody, resp.StatusCode, nil
 }

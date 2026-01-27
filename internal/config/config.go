@@ -41,7 +41,7 @@ func LoadControllerConfig() (*ControllerConfig, error) {
 
 	return &ControllerConfig{
 		ServerAddr:    envOrDefault("CONTROLLER_ADDR", ":8080"),
-		DatabasePath:  envOrDefault("DATABASE_PATH", "./data.db"),
+		DatabasePath:  envOrDefault("DATABASE_PATH", "./data/data.db"),
 		PollInterval:  poll,
 		AdminUsername: envOrDefault("ADMIN_USER", "admin"),
 		AdminPassword: envOrDefault("ADMIN_PASSWORD", "password"),

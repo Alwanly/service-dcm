@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"os"
+
 	"go.uber.org/zap"
 )
 
@@ -10,13 +12,41 @@ type CanonicalLogger struct {
 }
 
 // NewLoggerFromEnv creates a new logger. For simplicity, use zap.NewProduction.
+// NewLoggerFromEnv creates a new logger based on the LOG_FORMAT environment variable.
+// Supported LOG_FORMAT values:
+//   - "console" or "development": Human-readable console output with colored levels, ISO8601 timestamps
+//   - "json" or "production" (default): Structured JSON output for production environments
+//
+// The logger automatically skips one caller frame to report the actual calling code
+// instead of the wrapper function location.
 func NewLoggerFromEnv(component string) (*CanonicalLogger, error) {
-	cfg := zap.NewProductionConfig()
-	l, err := cfg.Build()
+	// Read LOG_FORMAT environment variable with default to "production"
+	logFormat := os.Getenv("LOG_FORMAT")
+	if logFormat == "" {
+		logFormat = "production"
+	}
+
+	// Select configuration based on environment
+	var cfg zap.Config
+	if logFormat == "console" || logFormat == "development" {
+		cfg = zap.NewDevelopmentConfig()
+	} else {
+		cfg = zap.NewProductionConfig()
+	}
+
+	// Build logger with AddCallerSkip(1) to skip the wrapper frame
+	// This ensures the caller field shows the actual calling code, not the wrapper
+	zapLogger, err := cfg.Build(
+		zap.AddCallerSkip(1),
+		zap.Fields(zap.String("component", component)),
+	)
 	if err != nil {
 		return nil, err
 	}
-	return &CanonicalLogger{l: l}, nil
+
+	return &CanonicalLogger{
+		l: zapLogger,
+	}, nil
 }
 
 func (c *CanonicalLogger) Sync() {

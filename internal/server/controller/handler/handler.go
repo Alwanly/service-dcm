@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/dto"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/repository"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/usecase"
@@ -9,28 +10,52 @@ import (
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
 	"github.com/Alwanly/service-distribute-management/pkg/validator"
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 )
 
 type Handler struct {
 	Logger     *logger.CanonicalLogger
-	UseCase    usecase.UseCaseInterface
+	UseCase    *usecase.UseCase
+	Config     *config.ControllerConfig
 	Middleware *middleware.AuthMiddleware
 }
 
-func NewHandler(d deps.App) *Handler {
+func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 
 	repo := repository.NewRepository(d.Database)
-	uc := usecase.NewUseCase(repo)
+
+	uc := usecase.NewUseCase(usecase.UseCase{
+		Repo:   repo,
+		Config: cfg,
+		Logger: d.Logger,
+	})
 
 	h := &Handler{
 		UseCase: uc,
 	}
+
+	// Health check endpoint (public, no auth required)
+	d.Fiber.Get("/", h.healthCheck)
 
 	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
 	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
 	d.Fiber.Get("/config", d.Middleware.BasicAuth(), h.getConfig)
 
 	return h
+}
+
+// healthCheck godoc
+// @Summary      Health check endpoint
+// @Description  Returns the health status of the controller service
+// @Tags         health
+// @Produce      json
+// @Success      200 {object} map[string]string "Service is healthy"
+// @Router       / [get]
+func (h *Handler) healthCheck(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"status":  "healthy",
+		"service": "controller",
+	})
 }
 
 // register godoc
@@ -46,17 +71,21 @@ func NewHandler(d deps.App) *Handler {
 // @Router       /register [post]
 // @Security     BasicAuth
 func (h *Handler) register(c *fiber.Ctx) error {
+	// Enrich log context
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "register_agent"))
 
 	req := new(dto.RegisterAgentRequest)
 	if err := c.BodyParser(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
 	if err := validator.ValidateStruct(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	res := h.UseCase.RegisterAgent(c.Context(), req)
+	res := h.UseCase.RegisterAgent(c.UserContext(), req)
 
 	return c.Status(res.Code).JSON(res.Data)
 }
@@ -74,17 +103,21 @@ func (h *Handler) register(c *fiber.Ctx) error {
 // @Router       /config [post]
 // @Security     BasicAuth
 func (h *Handler) setConfig(c *fiber.Ctx) error {
+	// Enrich log context
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "set_config"))
 
 	req := new(dto.SetConfigAgentRequest)
 	if err := c.BodyParser(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
 	if err := validator.ValidateStruct(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	res := h.UseCase.SetConfigAgent(c.Context(), req)
+	res := h.UseCase.UpdateConfig(c.UserContext(), req)
 
 	return c.Status(res.Code).JSON(res.Data)
 }
@@ -101,7 +134,9 @@ func (h *Handler) setConfig(c *fiber.Ctx) error {
 // @Router       /config [get]
 // @Security     BasicAuth
 func (h *Handler) getConfig(c *fiber.Ctx) error {
+	// Enrich log context
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "get_config"))
 
-	res := h.UseCase.GetConfigAgent(c.Context())
+	res := h.UseCase.GetConfig(c.UserContext())
 	return c.Status(res.Code).JSON(res.Data)
 }

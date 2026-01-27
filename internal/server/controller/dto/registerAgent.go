@@ -2,8 +2,6 @@ package dto
 
 // RegisterAgentRequest represents the agent registration request
 type RegisterAgentRequest struct {
-	Name      string `json:"name" example:"agent-prod-01"`
-	StartDate string `json:"start_date" example:"2026-01-27T10:00:00Z"`
 }
 
 // RegisterAgentResponse represents the agent registration response

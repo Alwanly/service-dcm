@@ -28,3 +28,6 @@ bin/
 
 # Copilot files
 .copilot/
+
+# Database SQLite files
+data/

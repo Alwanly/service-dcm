@@ -44,7 +44,8 @@ func NewHandler(d deps.App, timeout time.Duration) *Handler {
 // @Success      200 {object} dto.HealthCheckResponse "Worker is healthy"
 // @Router       /health [get]
 func (h *Handler) healthCheck(c *fiber.Ctx) error {
-	res := h.UseCase.GetHealthStatus(c.Context())
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "health_check"))
+	res := h.UseCase.GetHealthStatus(c.UserContext())
 	return c.Status(res.Code).JSON(res.Data)
 }
 
@@ -59,17 +60,21 @@ func (h *Handler) healthCheck(c *fiber.Ctx) error {
 // @Failure      400 {object} map[string]string "Invalid request body or validation error"
 // @Router       /config [post]
 func (h *Handler) receiveConfig(c *fiber.Ctx) error {
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "receive_config"))
+
 	req := new(dto.ReceiveConfigRequest)
 	if err := c.BodyParser(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
 	if err := validator.ValidateStruct(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		errs := validator.TranslateError(err)
 		return c.Status(fiber.StatusBadRequest).JSON(errs)
 	}
 
-	res := h.UseCase.ReceiveConfig(c.Context(), req)
+	res := h.UseCase.ReceiveConfig(c.UserContext(), req)
 	return c.Status(res.Code).JSON(res.Data)
 }
 
@@ -85,6 +90,8 @@ func (h *Handler) receiveConfig(c *fiber.Ctx) error {
 // @Failure      502 {object} map[string]string "Proxy request failed"
 // @Router       /hit [post]
 func (h *Handler) hit(c *fiber.Ctx) error {
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "proxy_request"))
+
 	body := c.Body()
 
 	headers := make(map[string][]string)
@@ -94,9 +101,9 @@ func (h *Handler) hit(c *fiber.Ctx) error {
 		headers[key] = append(headers[key], val)
 	})
 
-	respBody, status, err := h.UseCase.ProxyRequest(c.Context(), body, headers)
+	respBody, status, err := h.UseCase.ProxyRequest(c.UserContext(), body, headers)
 	if err != nil {
-		h.Logger.Error("proxy request failed", zap.Error(err))
+		logger.AddToContext(c.UserContext(), zap.Error(err))
 		return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 	}
 
