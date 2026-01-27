@@ -2,7 +2,7 @@ package database
 
 import (
 	"database/sql"
-	"embed"
+	_ "embed"
 	"fmt"
 	"strings"
 

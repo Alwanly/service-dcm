@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.controller
+    container_name: sdm-controller
+    image: service-controller:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - CONTROLLER_ADDR=${CONTROLLER_ADDR:-:8080}
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/data.db}
+      - POLL_INTERVAL=${POLL_INTERVAL:-5}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - AGENT_USER=${AGENT_USER:-agent}
+      - AGENT_PASSWORD=${AGENT_PASSWORD:-agent}
+    volumes:
+      - controller-data:/app/data
+    networks:
+      - sdm-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/controller/register"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: sdm-worker
+    image: service-worker:latest
+    ports:
+      - "8082:8082"
+    environment:
+      - WORKER_ADDR=${WORKER_ADDR:-:8082}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-10}
+    networks:
+      - sdm-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: sdm-agent
+    image: service-agent:latest
+    environment:
+      - CONTROLLER_URL=${CONTROLLER_URL:-http://controller:8080}
+      - WORKER_URL=${WORKER_URL:-http://worker:8082}
+      - POLL_INTERVAL=${POLL_INTERVAL:-5}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-10}
+      - AGENT_USER=${AGENT_USER:-agent}
+      - AGENT_PASSWORD=${AGENT_PASSWORD:-agent}
+    networks:
+      - sdm-network
+    depends_on:
+      controller:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  sdm-network:
+    driver: bridge
+    name: sdm-network
+
+volumes:
+  controller-data:
+    driver: local
+    name: sdm-controller-data

@@ -27,8 +27,6 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/controller .
 
-# Copy database initialization script
-COPY scripts/init-db.sql /app/scripts/
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
@@ -36,7 +34,7 @@ RUN mkdir -p /app/data
 # Expose controller port
 EXPOSE 8080
 
-# Copy and set up entrypoint script
+# Copy and set up entrypoint script (light wrapper)
 COPY scripts/init-controller.sh /app/scripts/
 RUN chmod +x /app/scripts/init-controller.sh
 
@@ -52,4 +50,4 @@ ENV CONTROLLER_ADDR=:8080 \
     DATABASE_PATH=/app/data/data.db \
     POLL_INTERVAL=5
 
-ENTRYPOINT ["/app/scripts/init-controller.sh"]
+ENTRYPOINT ["/app/controller"]
