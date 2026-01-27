@@ -15,8 +15,10 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent"
+	agenthandler "github.com/Alwanly/service-distribute-management/internal/server/agent/handler"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/retry"
+	"github.com/gofiber/fiber/v2"
 )
 
 const version = "1.0.0"
@@ -48,6 +50,22 @@ func main() {
 		Timeout: cfg.RequestTimeout,
 	}
 
+	hostname, _ := os.Hostname()
+	startTime := time.Now()
+
+	healthHandler := agenthandler.NewHandler(hostname, version, startTime)
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Get("/health", healthHandler.Health)
+
+	healthPort := envOrDefault("HEALTH_PORT", "8081")
+	go func() {
+		log.Info("health endpoint starting", logger.String("port", healthPort))
+		if err := app.Listen(":" + healthPort); err != nil {
+			log.WithError(err).Error("health endpoint failed to start")
+		}
+	}()
+
 	// Create controller client with retry configuration
 	log.Component("agent")
 	controllerRetryCfg := retry.Config{
@@ -55,16 +73,25 @@ func main() {
 		InitialBackoff: cfg.RegistrationInitialBackoff,
 		MaxBackoff:     cfg.RegistrationMaxBackoff,
 		Multiplier:     cfg.RegistrationBackoffMultiplier,
-		Jitter:         false,
+		Jitter:         true,
 	}
 
 	client := agent.NewControllerClient(cfg.ControllerURL, cfg.AgentUsername, cfg.AgentPassword, cfg.RequestTimeout, log, controllerRetryCfg)
 
-	hostname, _ := os.Hostname()
-	regResp, err := client.Register(context.Background(), hostname, version, time.Now().UTC().Format(time.RFC3339))
+	startTimeStr := startTime.UTC().Format(time.RFC3339)
+
+	log.Info("registering with controller",
+		logger.String("hostname", hostname),
+		logger.String("start_time", startTimeStr),
+	)
+
+	regResp, err := registerWithRetry(client, healthHandler, hostname, version, startTimeStr, log, controllerRetryCfg)
 	if err != nil {
-		log.WithError(err).Fatal("failed to register with controller")
+		healthHandler.SetRegistrationFailed(err, cfg.RegistrationMaxRetries+1)
+		log.WithError(err).Fatal("failed to register with controller after all retries")
 	}
+
+	healthHandler.SetRegistered(regResp.AgentID)
 
 	log.WithAgentID(regResp.AgentID).Info("registered with controller",
 		logger.Int("poll_interval", regResp.PollIntervalSeconds),
@@ -134,4 +161,39 @@ func sendConfigToWorker(client *http.Client, workerURL string, config *models.Wo
 	}
 
 	return nil
+}
+
+func registerWithRetry(client *agent.ControllerClient, healthHandler *agenthandler.Handler, hostname, version, startTime string, log *logger.CanonicalLogger, retryCfg retry.Config) (*models.RegistrationResponse, error) {
+	var result *models.RegistrationResponse
+	var lastErr error
+
+	operation := func(ctx context.Context) error {
+		healthHandler.IncrementAttempts()
+
+		resp, err := client.Register(ctx, hostname, version, startTime)
+		if err != nil {
+			lastErr = err
+			return err
+		}
+
+		result = resp
+		return nil
+	}
+
+	if err := retry.WithExponentialBackoff(context.Background(), retryCfg, operation); err != nil {
+		return nil, lastErr
+	}
+
+	return result, nil
+}
+
+func cfgDefaultMaxRetries() int {
+	return 5
+}
+
+func envOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
