@@ -4,7 +4,7 @@ services:
   controller:
     build:
       context: .
-      dockerfile: Dockerfile.controller
+      dockerfile: ./docker/controller/Dockerfile
     container_name: sdm-controller
     image: service-controller:latest
     ports:
@@ -32,7 +32,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: ./docker/worker/Dockerfile
     container_name: sdm-worker
     image: service-worker:latest
     ports:
@@ -53,7 +53,7 @@ services:
   agent:
     build:
       context: .
-      dockerfile: Dockerfile.agent
+      dockerfile: ./docker/agent/Dockerfile
     container_name: sdm-agent
     image: service-agent:latest
     environment:
@@ -65,11 +65,6 @@ services:
       - AGENT_PASSWORD=${AGENT_PASSWORD:-agent}
     networks:
       - sdm-network
-    depends_on:
-      controller:
-        condition: service_healthy
-      worker:
-        condition: service_healthy
     restart: unless-stopped
 
 networks:
