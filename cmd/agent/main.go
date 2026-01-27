@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Alwanly/service-distribute-management/internal/agent"
 	"github.com/Alwanly/service-distribute-management/internal/config"
-	"github.com/Alwanly/service-distribute-management/internal/logger"
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/Alwanly/service-distribute-management/internal/server/agent"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
 func main() {

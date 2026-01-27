@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,8 +12,9 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
-	"github.com/Alwanly/service-distribute-management/internal/logger"
-	"github.com/Alwanly/service-distribute-management/internal/server"
+	"github.com/Alwanly/service-distribute-management/internal/server/worker/handler"
+	"github.com/Alwanly/service-distribute-management/pkg/deps"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
 func main() {
@@ -23,12 +25,12 @@ func main() {
 	}
 	defer log.Sync()
 
-	log.Info("starting worker service")
+	log.Info("Starting Worker Service...")
 
 	// Load configuration
 	cfg, err := config.LoadWorkerConfig()
 	if err != nil {
-		log.WithError(err).Fatal("failed to load configuration")
+		log.Fatal("Failed to load configuration")
 	}
 
 	log.Info("configuration loaded",
@@ -38,56 +40,63 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName:      "Worker Service",
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		AppName:               "Worker Service",
+		DisableStartupMessage: true,
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			log.Error("Fiber error handler")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		},
 	})
 
-	// Add middleware
+	// Setup middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())
-	app.Use(loggingMiddleware(log))
+	// simple logging middleware
+	app.Use(func(c *fiber.Ctx) error {
+		start := time.Now()
+		err := c.Next()
+		duration := time.Since(start).Milliseconds()
+		log.HTTP(c.Method(), c.Path(), c.Response().StatusCode(), duration)
+		return err
+	})
 
-	// Create server
-	workerServer := server.NewWorkerServer(cfg.RequestTimeout)
+	// Create dependency container
+	dependencies := deps.App{
+		Fiber:  app,
+		Logger: log,
+	}
 
-	// Setup routes
-	workerServer.SetupRoutes(app)
+	// Initialize handler (creates full dependency chain)
+	handler.NewHandler(dependencies, cfg.RequestTimeout)
+
+	log.Info("Worker Service configured",
+		logger.String("addr", cfg.ServerAddr),
+		logger.Duration("request_timeout", cfg.RequestTimeout),
+	)
 
 	// Start server in goroutine
 	go func() {
-		log.Info("worker service listening", logger.String("addr", cfg.ServerAddr))
-		if err := app.Listen(cfg.ServerAddr); err != nil {
-			log.WithError(err).Fatal("server error")
+		addr := cfg.ServerAddr
+		log.Info("Worker Service starting", logger.String("address", addr))
+		if err := app.Listen(addr); err != nil {
+			log.Fatal("Failed to start server")
 		}
 	}()
 
-	// Wait for interrupt signal
+	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info("shutting down worker service")
+	log.Info("Shutting down Worker Service...")
 
-	// Graceful shutdown
-	if err := app.ShutdownWithTimeout(30 * time.Second); err != nil {
-		log.WithError(err).Error("server shutdown error")
+	// Gracefully shutdown with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := app.ShutdownWithContext(ctx); err != nil {
+		log.Error("Server forced to shutdown")
 	}
 
-	log.Info("worker service stopped")
-}
-
-// loggingMiddleware logs HTTP requests
-func loggingMiddleware(log *logger.CanonicalLogger) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		start := time.Now()
-
-		err := c.Next()
-
-		duration := time.Since(start).Milliseconds()
-		log.HTTP(c.Method(), c.Path(), c.Response().StatusCode(), duration)
-
-		return err
-	}
+	log.Info("Worker Service stopped")
 }
