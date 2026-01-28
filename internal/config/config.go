@@ -14,6 +14,7 @@ type ControllerConfig struct {
 	AdminPassword string
 	AgentUsername string
 	AgentPassword string
+	Redis         *RedisConfig
 }
 
 type WorkerConfig struct {
@@ -29,11 +30,20 @@ type AgentConfig struct {
 	AgentUsername  string
 	AgentPassword  string
 	AgentAddr      string
+	Redis          *RedisConfig
 	// Registration retry configuration
 	RegistrationMaxRetries        int
 	RegistrationInitialBackoff    time.Duration
 	RegistrationMaxBackoff        time.Duration
 	RegistrationBackoffMultiplier float64
+}
+
+// RedisConfig holds Redis connection configuration
+type RedisConfig struct {
+	Host     string
+	Port     int
+	Password string
+	DB       int
 }
 
 // LoadControllerConfig reads controller config from environment or returns defaults
@@ -45,7 +55,7 @@ func LoadControllerConfig() (*ControllerConfig, error) {
 		}
 	}
 
-	return &ControllerConfig{
+	cfg := &ControllerConfig{
 		ServerAddr:    envOrDefault("CONTROLLER_ADDR", ":8080"),
 		DatabasePath:  envOrDefault("DATABASE_PATH", "./data/data.db"),
 		PollInterval:  poll,
@@ -53,7 +63,11 @@ func LoadControllerConfig() (*ControllerConfig, error) {
 		AdminPassword: envOrDefault("ADMIN_PASSWORD", "password"),
 		AgentUsername: envOrDefault("AGENT_USER", "agent"),
 		AgentPassword: envOrDefault("AGENT_PASSWORD", "agentpass"),
-	}, nil
+	}
+
+	cfg.Redis = LoadRedisConfig()
+
+	return cfg, nil
 }
 
 // LoadWorkerConfig reads worker config from environment or returns defaults
@@ -115,7 +129,7 @@ func LoadAgentConfig() (*AgentConfig, error) {
 		}
 	}
 
-	return &AgentConfig{
+	cfg := &AgentConfig{
 		AgentAddr:                     envOrDefault("AGENT_ADDR", ":8081"),
 		ControllerURL:                 envOrDefault("CONTROLLER_URL", "http://localhost:8080"),
 		WorkerURL:                     envOrDefault("WORKER_URL", "http://localhost:8082"),
@@ -127,7 +141,35 @@ func LoadAgentConfig() (*AgentConfig, error) {
 		RegistrationInitialBackoff:    initialBackoff,
 		RegistrationMaxBackoff:        maxBackoff,
 		RegistrationBackoffMultiplier: multiplier,
-	}, nil
+	}
+
+	cfg.Redis = LoadRedisConfig()
+
+	return cfg, nil
+}
+
+// LoadRedisConfig loads Redis configuration from environment variables
+func LoadRedisConfig() *RedisConfig {
+	port := 6379
+	if v := os.Getenv("REDIS_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			port = p
+		}
+	}
+
+	db := 0
+	if v := os.Getenv("REDIS_DB"); v != "" {
+		if d, err := strconv.Atoi(v); err == nil {
+			db = d
+		}
+	}
+
+	return &RedisConfig{
+		Host:     envOrDefault("REDIS_HOST", "localhost"),
+		Port:     port,
+		Password: envOrDefault("REDIS_PASSWORD", ""),
+		DB:       db,
+	}
 }
 
 func envOrDefault(key, def string) string {

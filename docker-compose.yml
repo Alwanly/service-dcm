@@ -67,6 +67,19 @@ services:
       - sdm-network
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: sdm-redis
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    networks:
+      - sdm-network
+    restart: unless-stopped
+
 networks:
   sdm-network:
     driver: bridge
