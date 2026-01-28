@@ -1,16 +1,15 @@
 package deps
 
 import (
-	"database/sql"
-
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type App struct {
 	Fiber      *fiber.App
 	Logger     *logger.CanonicalLogger
-	Database   *sql.DB
+	Database   *gorm.DB
 	Middleware *middleware.AuthMiddleware
 }

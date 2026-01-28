@@ -71,9 +71,16 @@ func main() {
 	db, err := database.NewSQLiteDB(cfg.DatabasePath)
 	if err != nil {
 		log.WithError(err).Fatal("failed to initialize database")
+		panic(err)
 	}
-	defer db.Close()
 	log.Info("database initialized", logger.String("path", cfg.DatabasePath))
+
+	// Migrate database schema
+	if err := database.RunMigrations(db); err != nil {
+		log.WithError(err).Fatal("failed to migrate database")
+		panic(err)
+	}
+	log.Info("database migrations applied successfully")
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -123,7 +130,12 @@ func main() {
 			return err
 		}
 
-		if err := db.Close(); err != nil {
+		conn, err := db.DB()
+		if err != nil {
+			log.WithError(err).Error("failed to get database connection")
+			return err
+		}
+		if err := conn.Close(); err != nil {
 			log.WithError(err).Error("failed to close database")
 			return err
 		}

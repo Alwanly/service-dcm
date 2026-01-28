@@ -1,20 +1,24 @@
 package repository
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/Alwanly/service-distribute-management/internal/models"
 )
 
-// IRepository defines the interface for worker configuration storage
+type StorageData struct {
+	Config models.ConfigData
+	ETag   string
+}
 type IRepository interface {
-	GetCurrentConfig() (*models.WorkerConfiguration, error)
-	UpdateConfig(config *models.WorkerConfiguration) error
+	GetCurrentConfig() (*StorageData, error)
+	UpdateConfig(config *models.Configuration) error
 }
 
 // Repository implements in-memory storage for worker configuration
 type Repository struct {
-	currentConfig *models.WorkerConfiguration
+	currentConfig *StorageData
 	mutex         sync.RWMutex
 }
 
@@ -27,40 +31,28 @@ func NewRepository() IRepository {
 }
 
 // GetCurrentConfig retrieves the current worker configuration
-func (r *Repository) GetCurrentConfig() (*models.WorkerConfiguration, error) {
+func (r *Repository) GetCurrentConfig() (*StorageData, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	if r.currentConfig == nil {
-		return nil, nil
-	}
-
-	// Return a copy to prevent external modifications
-	configCopy := *r.currentConfig
-	if r.currentConfig.Headers != nil {
-		configCopy.Headers = make(map[string]string)
-		for k, v := range r.currentConfig.Headers {
-			configCopy.Headers[k] = v
-		}
-	}
-
-	return &configCopy, nil
+	return r.currentConfig, nil
 }
 
 // UpdateConfig updates the worker configuration
-func (r *Repository) UpdateConfig(config *models.WorkerConfiguration) error {
+func (r *Repository) UpdateConfig(config *models.Configuration) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	// Store a copy to prevent external modifications
-	configCopy := *config
-	if config.Headers != nil {
-		configCopy.Headers = make(map[string]string)
-		for k, v := range config.Headers {
-			configCopy.Headers[k] = v
-		}
+	var configData models.ConfigData
+	err := json.Unmarshal([]byte(config.ConfigData), &configData)
+	if err != nil {
+		return err
 	}
 
-	r.currentConfig = &configCopy
+	r.currentConfig = &StorageData{
+		Config: configData,
+		ETag:   config.ETag,
+	}
+
 	return nil
 }

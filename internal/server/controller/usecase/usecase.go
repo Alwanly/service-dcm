@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
+	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/dto"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/repository"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
@@ -37,10 +38,13 @@ func (uc *UseCase) RegisterAgent(ctx context.Context, req *dto.RegisterAgentRequ
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to generate agent ID", err)
 	}
 
-	startup_time := time.Now()
-	status := "active"
+	data := new(models.Agent)
 
-	err = uc.Repo.RegisterAgent(agentID.String(), startup_time, status)
+	data.AgentID = agentID.String()
+	data.Status = "active"
+	data.LastSeen = time.Now()
+
+	err = uc.Repo.RegisterAgent(ctx, data)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to register agent", err)
@@ -63,13 +67,13 @@ func (uc *UseCase) RegisterAgent(ctx context.Context, req *dto.RegisterAgentRequ
 }
 
 func (uc *UseCase) UpdateConfig(ctx context.Context, req *dto.SetConfigAgentRequest) wrapper.JSONResult {
-	config, err := json.Marshal(req.Config)
+	config, err := json.Marshal(req)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to marshal config data", err)
 	}
 
-	err = uc.Repo.UpdateConfig(string(config))
+	err = uc.Repo.UpdateConfig(ctx, string(config))
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to update config", err)
@@ -80,28 +84,21 @@ func (uc *UseCase) UpdateConfig(ctx context.Context, req *dto.SetConfigAgentRequ
 }
 
 func (uc *UseCase) GetConfig(ctx context.Context) wrapper.JSONResult {
-	etag, err := uc.Repo.GetConfigETag()
+	etag, err := uc.Repo.GetConfigETag(ctx)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to get config", err)
 	}
 
-	configData, err := uc.Repo.GetConfig(etag)
+	configData, err := uc.Repo.GetConfig(ctx, etag)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to get config if changed", err)
 	}
 
-	if configData == "" {
+	if configData == nil {
 		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
 		return wrapper.ResponseSuccess(http.StatusNotModified, nil)
-	}
-
-	var config interface{}
-	err = json.Unmarshal([]byte(configData), &config)
-	if err != nil {
-		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
-		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to unmarshal config data", err)
 	}
 
 	logger.AddToContext(ctx,
@@ -111,7 +108,7 @@ func (uc *UseCase) GetConfig(ctx context.Context) wrapper.JSONResult {
 
 	response := dto.GetConfigAgentResponse{
 		ETag:   etag,
-		Config: config,
+		Config: configData,
 	}
 	return wrapper.ResponseSuccess(http.StatusOK, response)
 }

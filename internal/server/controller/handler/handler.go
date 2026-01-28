@@ -34,28 +34,11 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 		UseCase: uc,
 	}
 
-	// Health check endpoint (public, no auth required)
-	d.Fiber.Get("/", h.healthCheck)
-
 	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
 	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
 	d.Fiber.Get("/config", d.Middleware.BasicAuth(), h.getConfig)
 
 	return h
-}
-
-// healthCheck godoc
-// @Summary      Health check endpoint
-// @Description  Returns the health status of the controller service
-// @Tags         health
-// @Produce      json
-// @Success      200 {object} map[string]string "Service is healthy"
-// @Router       / [get]
-func (h *Handler) healthCheck(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
-		"status":  "healthy",
-		"service": "controller",
-	})
 }
 
 // register godoc
@@ -66,8 +49,8 @@ func (h *Handler) healthCheck(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        request body dto.RegisterAgentRequest true "Agent registration details"
 // @Success      200 {object} dto.RegisterAgentResponse "Successfully registered agent"
-// @Failure      400 {object} map[string]string "Invalid request body or validation error"
-// @Failure      401 {object} map[string]string "Unauthorized - invalid agent credentials"
+// @Failure      400 {object} wrapper.JSONResult "Invalid request body or validation error"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
 // @Router       /register [post]
 // @Security     BasicAuth
 func (h *Handler) register(c *fiber.Ctx) error {
@@ -97,9 +80,9 @@ func (h *Handler) register(c *fiber.Ctx) error {
 // @Accept       json
 // @Produce      json
 // @Param        request body dto.SetConfigAgentRequest true "Configuration data"
-// @Success      200 {object} dto.SetConfigAgentResponse "Configuration set successfully"
-// @Failure      400 {object} map[string]string "Invalid request body or validation error"
-// @Failure      401 {object} map[string]string "Unauthorized - invalid admin credentials"
+// @Success      200 {object} wrapper.JSONResult "Configuration set successfully"
+// @Failure      400 {object} wrapper.JSONResult "Invalid request body or validation error"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
 // @Router       /config [post]
 // @Security     BasicAuth
 func (h *Handler) setConfig(c *fiber.Ctx) error {
@@ -128,9 +111,8 @@ func (h *Handler) setConfig(c *fiber.Ctx) error {
 // @Tags         configuration
 // @Accept       json
 // @Produce      json
-// @Success      200 {object} dto.GetConfigAgentResponse "Current configuration"
-// @Failure      401 {object} map[string]string "Unauthorized - invalid agent credentials"
-// @Failure      404 {object} map[string]string "No configuration found"
+// @Success      200 {object} dto.GetConfigAgentResponse "Current configuration data"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
 // @Router       /config [get]
 // @Security     BasicAuth
 func (h *Handler) getConfig(c *fiber.Ctx) error {
