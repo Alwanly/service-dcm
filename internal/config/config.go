@@ -28,6 +28,7 @@ type AgentConfig struct {
 	RequestTimeout time.Duration
 	AgentUsername  string
 	AgentPassword  string
+	AgentAddr      string
 	// Registration retry configuration
 	RegistrationMaxRetries        int
 	RegistrationInitialBackoff    time.Duration
@@ -115,6 +116,7 @@ func LoadAgentConfig() (*AgentConfig, error) {
 	}
 
 	return &AgentConfig{
+		AgentAddr:                     envOrDefault("AGENT_ADDR", ":8081"),
 		ControllerURL:                 envOrDefault("CONTROLLER_URL", "http://localhost:8080"),
 		WorkerURL:                     envOrDefault("WORKER_URL", "http://localhost:8082"),
 		PollInterval:                  poll,
