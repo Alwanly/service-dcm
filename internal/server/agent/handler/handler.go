@@ -1,92 +1,46 @@
 package handler
 
 import (
-	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/Alwanly/service-distribute-management/internal/server/agent/dto"
+	"github.com/Alwanly/service-distribute-management/internal/server/agent/usecase"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	"github.com/Alwanly/service-distribute-management/pkg/wrapper"
 )
 
-type RegistrationStatus string
-
-const (
-	StatusRegistering        RegistrationStatus = "registering"
-	StatusRegistered         RegistrationStatus = "registered"
-	StatusRegistrationFailed RegistrationStatus = "registration_failed"
-)
-
-type HealthStatus struct {
-	mu sync.RWMutex
-
-	Status               RegistrationStatus `json:"status"`
-	AgentID              string             `json:"agent_id,omitempty"`
-	Hostname             string             `json:"hostname,omitempty"`
-	Version              string             `json:"version,omitempty"`
-	StartTime            time.Time          `json:"start_time"`
-	RegistrationTime     *time.Time         `json:"registration_time,omitempty"`
-	Uptime               string             `json:"uptime"`
-	RegistrationError    string             `json:"registration_error,omitempty"`
-	RegistrationAttempts int                `json:"registration_attempts"`
-}
-
+// Handler handles HTTP requests for the agent service
 type Handler struct {
-	health *HealthStatus
+	useCase usecase.IUseCase
+	logger  *logger.CanonicalLogger
 }
 
-func NewHandler(hostname, version string, startTime time.Time) *Handler {
-	return &Handler{
-		health: &HealthStatus{
-			Status:               StatusRegistering,
-			Hostname:             hostname,
-			Version:              version,
-			StartTime:            startTime,
-			RegistrationAttempts: 0,
-		},
-	}
+// NewHandler creates a new agent handler
+func NewHandler(uc usecase.IUseCase, log *logger.CanonicalLogger) *Handler {
+	return &Handler{useCase: uc, logger: log}
 }
 
-func (h *Handler) SetRegistered(agentID string) {
-	h.health.mu.Lock()
-	defer h.health.mu.Unlock()
-
-	now := time.Now()
-	h.health.Status = StatusRegistered
-	h.health.AgentID = agentID
-	h.health.RegistrationTime = &now
-	h.health.RegistrationError = ""
+// RegisterRoutes registers all agent routes
+func (h *Handler) RegisterRoutes(app *fiber.App) {
+	app.Get("/health", h.Health)
+	app.Get("/status", h.Status)
 }
 
-func (h *Handler) SetRegistrationFailed(err error, attempts int) {
-	h.health.mu.Lock()
-	defer h.health.mu.Unlock()
-
-	h.health.Status = StatusRegistrationFailed
-	if err != nil {
-		h.health.RegistrationError = err.Error()
-	}
-	h.health.RegistrationAttempts = attempts
-}
-
-func (h *Handler) IncrementAttempts() {
-	h.health.mu.Lock()
-	defer h.health.mu.Unlock()
-
-	h.health.RegistrationAttempts++
-}
-
+// Health handles the health check endpoint
 func (h *Handler) Health(c *fiber.Ctx) error {
-	h.health.mu.RLock()
-	defer h.health.mu.RUnlock()
-
-	response := *h.health
-	response.Uptime = time.Since(h.health.StartTime).String()
-
-	statusCode := fiber.StatusOK
-	if response.Status == StatusRegistrationFailed {
-		statusCode = fiber.StatusServiceUnavailable
-	} else if response.Status == StatusRegistering {
-		statusCode = fiber.StatusAccepted
+	response := dto.HealthResponse{
+		Status:    "ok",
+		AgentID:   h.useCase.GetAgentID(),
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	return c.Status(statusCode).JSON(response)
+	return c.Status(fiber.StatusOK).JSON(wrapper.ResponseSuccess(fiber.StatusOK, response))
+}
+
+// Status handles the status endpoint showing agent information
+func (h *Handler) Status(c *fiber.Ctx) error {
+	status := h.useCase.GetStatus()
+	return c.Status(fiber.StatusOK).JSON(wrapper.ResponseSuccess(fiber.StatusOK, status))
 }
