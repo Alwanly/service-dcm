@@ -13,3 +13,10 @@ type Agent struct {
 func (Agent) TableName() string {
 	return "agents"
 }
+
+// RegistrationResponse represents the response when an agent successfully registers with the controller
+type RegistrationResponse struct {
+	AgentID             string `json:"agent_id"`
+	PollURL             string `json:"poll_url,omitempty"`
+	PollIntervalSeconds int    `json:"poll_interval_seconds"`
+}

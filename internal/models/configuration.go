@@ -18,3 +18,11 @@ type ConfigData struct {
 	URL   string `json:"url"`
 	Proxy string `json:"proxy"`
 }
+
+// WorkerConfiguration represents the configuration sent to a worker instance
+type WorkerConfiguration struct {
+	Version   int64             `json:"version"`
+	TargetURL string            `json:"target_url"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	UpdatedAt time.Time         `json:"updated_at"`
+}
