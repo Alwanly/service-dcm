@@ -29,7 +29,7 @@ func NewWorkerClient(cfg *config.AgentConfig, log *logger.CanonicalLogger) IWork
 }
 
 // SendConfiguration sends the configuration to the worker
-func (w *workerClient) SendConfiguration(ctx context.Context, config *models.WorkerConfiguration) error {
+func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Configuration) error {
 	url := fmt.Sprintf("%s/config", w.baseURL)
 	data, err := json.Marshal(config)
 	if err != nil {

@@ -1,46 +1,45 @@
 package handler
 
 import (
-	"time"
+	"context"
+	"errors"
 
-	"github.com/gofiber/fiber/v2"
-
-	"github.com/Alwanly/service-distribute-management/internal/server/agent/dto"
+	"github.com/Alwanly/service-distribute-management/internal/config"
+	"github.com/Alwanly/service-distribute-management/internal/server/agent/repository"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent/usecase"
+	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
-	"github.com/Alwanly/service-distribute-management/pkg/wrapper"
+	"github.com/Alwanly/service-distribute-management/pkg/poll"
 )
 
 // Handler handles HTTP requests for the agent service
 type Handler struct {
-	useCase usecase.IUseCase
+	useCase *usecase.UseCase
 	logger  *logger.CanonicalLogger
 }
 
 // NewHandler creates a new agent handler
-func NewHandler(uc usecase.IUseCase, log *logger.CanonicalLogger) *Handler {
-	return &Handler{useCase: uc, logger: log}
-}
+func NewHandler(d deps.App, config *config.AgentConfig) *Handler {
 
-// RegisterRoutes registers all agent routes
-func (h *Handler) RegisterRoutes(app *fiber.App) {
-	app.Get("/health", h.Health)
-	app.Get("/status", h.Status)
-}
+	controllerRepo := repository.NewControllerClient(config, d.Logger)
 
-// Health handles the health check endpoint
-func (h *Handler) Health(c *fiber.Ctx) error {
-	response := dto.HealthResponse{
-		Status:    "ok",
-		AgentID:   h.useCase.GetAgentID(),
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	uc := usecase.NewUseCase(controllerRepo)
+	h := &Handler{
+		useCase: uc,
+		logger:  d.Logger,
 	}
 
-	return c.Status(fiber.StatusOK).JSON(wrapper.ResponseSuccess(fiber.StatusOK, response))
+	d.Poller.RegisterFetchFunc("register-agent", h.RegisterAgent, poll.PollerConfig{
+		PollIntervalSeconds: 50,
+	})
+	return h
 }
 
-// Status handles the status endpoint showing agent information
-func (h *Handler) Status(c *fiber.Ctx) error {
-	status := h.useCase.GetStatus()
-	return c.Status(fiber.StatusOK).JSON(wrapper.ResponseSuccess(fiber.StatusOK, status))
+func (h *Handler) RegisterAgent(ctx context.Context) error {
+	res := h.useCase.RegisterWithController(ctx)
+
+	if !res.Success {
+		return errors.New(res.Message)
+	}
+	return nil
 }

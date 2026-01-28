@@ -7,20 +7,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
-	"github.com/Alwanly/service-distribute-management/pkg/retry"
 )
 
 type controllerClient struct {
-	httpClient  *http.Client
-	baseURL     string
-	username    string
-	password    string
-	logger      *logger.CanonicalLogger
-	retryConfig retry.Config
+	httpClient    *http.Client
+	baseURL       string
+	username      string
+	password      string
+	logger        *logger.CanonicalLogger
+	currentConfig *StoreData
+	mutex         sync.Mutex
 }
 
 // NewControllerClient creates a new controller client repository
@@ -31,13 +32,6 @@ func NewControllerClient(cfg *config.AgentConfig, log *logger.CanonicalLogger) I
 		username:   cfg.AgentUsername,
 		password:   cfg.AgentPassword,
 		logger:     log,
-		retryConfig: retry.Config{
-			MaxRetries:     cfg.RegistrationMaxRetries,
-			InitialBackoff: cfg.RegistrationInitialBackoff,
-			MaxBackoff:     cfg.RegistrationMaxBackoff,
-			Multiplier:     cfg.RegistrationBackoffMultiplier,
-			Jitter:         true,
-		},
 	}
 }
 
@@ -53,7 +47,7 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 		return nil, fmt.Errorf("failed to marshal registration request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/agent/register", c.baseURL), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/register", c.baseURL), bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -83,43 +77,12 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 		return nil, fmt.Errorf("failed to decode registration response: %w", err)
 	}
 
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.currentConfig == nil {
+		c.currentConfig = &StoreData{}
+	}
+	c.currentConfig.AgentID = regResp.AgentID
+
 	return &regResp, nil
-}
-
-func (c *controllerClient) GetConfiguration(ctx context.Context, agentID string, currentETag string) (*models.WorkerConfiguration, string, error) {
-	url := fmt.Sprintf("%s/agent/%s/config", c.baseURL, agentID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.SetBasicAuth(c.username, c.password)
-	req.Header.Set("X-Agent-ID", agentID)
-	if currentETag != "" {
-		req.Header.Set("If-None-Match", currentETag)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotModified {
-		return nil, currentETag, nil
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return nil, "", fmt.Errorf("fetch configuration failed with status %d: %s", resp.StatusCode, string(b))
-	}
-
-	var cfg models.WorkerConfiguration
-	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
-		return nil, "", fmt.Errorf("failed to decode configuration: %w", err)
-	}
-
-	newETag := resp.Header.Get("ETag")
-
-	return &cfg, newETag, nil
 }

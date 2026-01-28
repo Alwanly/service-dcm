@@ -2,7 +2,6 @@ package poll
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
@@ -11,88 +10,87 @@ import (
 
 // poller implements the Poller interface
 type poller struct {
-	fetchFunc   FetchFunc
-	interval    time.Duration
-	currentETag string
-	logger      *logger.CanonicalLogger
-	stopCh      chan struct{}
-	updateCh    chan ConfigUpdateMessage
+	logger     *logger.CanonicalLogger
+	stopCh     chan struct{}
+	fetchFuncs map[string]MetaFunc
 }
 
 // NewPoller creates a new Poller instance
-func NewPoller(fetchFunc FetchFunc, config Config, log *logger.CanonicalLogger) Poller {
+func NewPoller(log *logger.CanonicalLogger) Poller {
 	return &poller{
-		fetchFunc:   fetchFunc,
-		interval:    config.Interval,
-		currentETag: config.InitialETag,
-		logger:      log,
-		stopCh:      make(chan struct{}),
-		updateCh:    make(chan ConfigUpdateMessage, 1),
+		logger:     log,
+		stopCh:     make(chan struct{}),
+		fetchFuncs: make(map[string]MetaFunc),
 	}
 }
 
 // Start begins polling and returns a channel for config updates
-func (p *poller) Start(ctx context.Context) (<-chan ConfigUpdateMessage, error) {
-	if p.fetchFunc == nil {
-		return nil, fmt.Errorf("fetch function cannot be nil")
-	}
-
+func (p *poller) Start(ctx context.Context) error {
 	go p.poll(ctx)
-	return p.updateCh, nil
+	return nil
 }
 
 // Stop gracefully stops the poller
 func (p *poller) Stop() error {
 	close(p.stopCh)
-	close(p.updateCh)
 	return nil
 }
 
 // poll performs the polling loop
 func (p *poller) poll(ctx context.Context) {
-	ticker := time.NewTicker(p.interval)
-	defer ticker.Stop()
-
-	// Perform initial poll immediately
-	p.performPoll(ctx)
+	tickers := make(map[string]*time.Ticker)
+	for name, meta := range p.fetchFuncs {
+		interval := time.Duration(meta.PollIntervalSeconds) * time.Second
+		tickers[name] = time.NewTicker(interval)
+		p.logger.Info("started polling", zap.String("name", name), zap.Duration("interval", interval))
+	}
 
 	for {
 		select {
-		case <-ctx.Done():
-			p.logger.Info("poller stopped due to context cancellation")
-			return
 		case <-p.stopCh:
-			p.logger.Info("poller stopped")
+			p.logger.Info("stopping poller")
+			for _, ticker := range tickers {
+				ticker.Stop()
+			}
 			return
-		case <-ticker.C:
-			p.performPoll(ctx)
+		default:
+			for name, ticker := range tickers {
+				select {
+				case <-ticker.C:
+					p.logger.Debug("polling for configuration", zap.String("name", name))
+					p.performPoll(ctx)
+				default:
+				}
+			}
+			time.Sleep(100 * time.Millisecond) // Prevent tight loop
 		}
 	}
 }
 
 // performPoll executes a single poll operation
 func (p *poller) performPoll(ctx context.Context) {
-	config, newETag, err := p.fetchFunc(ctx, p.currentETag)
-	if err != nil {
-		p.logger.WithError(err).Error("failed to fetch configuration")
+	for name, meta := range p.fetchFuncs {
+		err := meta.FetchFunc(ctx)
+		if err != nil {
+			p.logger.WithError(err).Error("failed to fetch configuration", zap.String("name", name))
+			continue
+		}
+		p.logger.Info("successfully fetched configuration", zap.String("name", name))
+	}
+}
+
+// RegisterFetchFunc registers a fetch function with its polling configuration
+func (p *poller) RegisterFetchFunc(name string, fetchFunc FetchFunc, config PollerConfig) {
+	if name == "" || fetchFunc == nil {
+		p.logger.Error("invalid fetch function registration")
 		return
 	}
-
-	// No update if ETag hasn't changed (fetchFunc should return same ETag)
-	if newETag == p.currentETag {
-		p.logger.Debug("no configuration update available")
-		return
+	if _, exists := p.fetchFuncs[name]; exists {
+		panic("name already existing")
 	}
-
-	p.logger.Info("configuration update detected", zap.String("old_etag", p.currentETag), zap.String("new_etag", newETag))
-
-	p.currentETag = newETag
-
-	// Send update to channel (non-blocking)
-	select {
-	case p.updateCh <- ConfigUpdateMessage{Config: config, ETag: newETag}:
-		p.logger.Debug("configuration update sent to channel")
-	default:
-		p.logger.Info("configuration update channel full, skipping")
+	p.fetchFuncs[name] = MetaFunc{
+		FetchFunc:    fetchFunc,
+		PollerConfig: config,
 	}
+	p.logger.Info("fetch function registered", zap.String("name", name), zap.Int("poll_interval_seconds", config.PollIntervalSeconds))
 }

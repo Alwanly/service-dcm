@@ -6,16 +6,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
-	agenthandler "github.com/Alwanly/service-distribute-management/internal/server/agent/handler"
-	"github.com/Alwanly/service-distribute-management/internal/server/agent/repository"
-	"github.com/Alwanly/service-distribute-management/internal/server/agent/usecase"
+	"github.com/Alwanly/service-distribute-management/internal/server/agent/handler"
+	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
-	"github.com/Alwanly/service-distribute-management/pkg/retry"
+	"github.com/Alwanly/service-distribute-management/pkg/poll"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -39,52 +39,30 @@ func main() {
 		logger.String("agent_addr", cfg.AgentAddr),
 	)
 
+	// initialize poller
+	poller := poll.NewPoller(log)
+
 	// Create Fiber app
 	app := fiber.New(fiber.Config{DisableStartupMessage: true, ErrorHandler: middleware.ErrorHandler(log)})
 
-	// Initialize repositories
-	controllerClient := repository.NewControllerClient(cfg, log)
-	workerClient := repository.NewWorkerClient(cfg, log)
+	// Add middleware
+	app.Use(recover.New())
+	app.Use(requestid.New())
+	app.Use(middleware.CanonicalLoggerMiddleware(log))
 
-	// Initialize usecase
-	uc := usecase.NewUseCase(controllerClient, workerClient, cfg, log)
+	// Initialize dependencies
+	deps := deps.App{
+		Fiber:  app,
+		Logger: log,
+		Poller: poller,
+	}
 
-	// Initialize handler
-	h := agenthandler.NewHandler(uc, log)
-	h.RegisterRoutes(app)
+	// Initialize and register handler
+	handler.NewHandler(deps, cfg)
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	// Register agent with controller with retry
-	var agentID string
-	registerOp := func(ctx context.Context) error {
-		id, err := uc.RegisterWithController(ctx)
-		if err == nil {
-			agentID = id
-		}
-		return err
-	}
-
-	backoffCfg := retry.Config{
-		MaxRetries:     cfg.RegistrationMaxRetries,
-		InitialBackoff: cfg.RegistrationInitialBackoff,
-		MaxBackoff:     cfg.RegistrationMaxBackoff,
-		Multiplier:     cfg.RegistrationBackoffMultiplier,
-		Jitter:         true,
-	}
-
-	if err := retry.WithExponentialBackoff(ctx, backoffCfg, func(c context.Context) error { return registerOp(c) }); err != nil {
-		log.WithError(err).Fatal("failed to register with controller after retries")
-	}
-
-	log.WithAgentID(agentID).Info("agent registered successfully")
-
-	// Start polling
-	if err := uc.StartPolling(ctx, agentID); err != nil {
-		log.WithError(err).Fatal("failed to start polling")
-	}
 
 	// Use errgroup for managing concurrent goroutines
 	g, gCtx := errgroup.WithContext(ctx)
@@ -98,36 +76,44 @@ func main() {
 		return nil
 	})
 
-	// Handle graceful shutdown
+	// Start poller
 	g.Go(func() error {
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-		select {
-		case sig := <-sigCh:
-			log.Info("received shutdown signal", logger.String("signal", sig.String()))
-		case <-gCtx.Done():
-			log.Info("context cancelled")
+		log.Info("starting poller")
+		if err := poller.Start(gCtx); err != nil {
+			return fmt.Errorf("poller stopped with error: %w", err)
 		}
-
-		if err := uc.StopPolling(); err != nil {
-			log.WithError(err).Error("error stopping polling")
-		}
-
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer shutdownCancel()
-
-		if err := app.ShutdownWithContext(shutdownCtx); err != nil {
-			log.WithError(err).Error("error during server shutdown")
-		}
-
-		cancel()
 		return nil
 	})
 
+	// Handle graceful shutdown
+	g.Go(func() error {
+		<-gCtx.Done()
+
+		if err := app.Shutdown(); err != nil {
+			log.WithError(err).Error("failed to shutdown fiber app")
+			return err
+		}
+
+		if err := poller.Stop(); err != nil {
+			log.WithError(err).Error("failed to stop poller")
+			return err
+		}
+
+		return nil
+	})
+
+	// listen for OS signals
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+		log.Info("listening for OS signals")
+		<-sigChan
+		log.Info("shutdown signal received")
+		cancel()
+	}()
+
 	if err := g.Wait(); err != nil {
 		log.WithError(err).Error("agent service stopped with error")
-		os.Exit(1)
 	}
 
 	log.Info("agent service stopped gracefully")
