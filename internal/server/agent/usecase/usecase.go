@@ -2,39 +2,89 @@ package usecase
 
 import (
 	"context"
-	"net/http"
+	"fmt"
 
+	"github.com/Alwanly/service-distribute-management/internal/config"
+	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent/repository"
-	"github.com/Alwanly/service-distribute-management/pkg/wrapper"
+	"github.com/Alwanly/service-distribute-management/pkg/retry"
 )
 
 type UseCase struct {
-	controllerClient repository.IControllerClient
+	controller repository.IControllerClient
+	repo       repository.IRepository
+	worker     repository.IWorkerClient
+	cfg        *config.AgentConfig
 }
 
-func NewUseCase(controllerClient repository.IControllerClient) *UseCase {
-	return &UseCase{
-		controllerClient: controllerClient,
+func NewUseCase(ctrl repository.IControllerClient, repo repository.IRepository, worker repository.IWorkerClient, cfg *config.AgentConfig) *UseCase {
+	return &UseCase{controller: ctrl, repo: repo, worker: worker, cfg: cfg}
+}
+
+// RegisterWithController registers the agent and stores agentID into the repository.
+func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTime string) (*models.RegistrationResponse, error) {
+	var lastErr error
+	op := func(ctx context.Context) error {
+		resp, err := uc.controller.Register(ctx, hostname, "", startTime)
+		if err != nil {
+			lastErr = err
+			return err
+		}
+		if resp == nil || resp.AgentID == "" {
+			lastErr = fmt.Errorf("invalid registration response")
+			return lastErr
+		}
+		if err := uc.repo.SetAgentID(resp.AgentID); err != nil {
+			lastErr = fmt.Errorf("persist agent id: %w", err)
+			return lastErr
+		}
+		return nil
 	}
+
+	retryCfg := retry.Config{
+		MaxRetries:     uc.cfg.RegistrationMaxRetries,
+		InitialBackoff: uc.cfg.RegistrationInitialBackoff,
+		MaxBackoff:     uc.cfg.RegistrationMaxBackoff,
+		Multiplier:     uc.cfg.RegistrationBackoffMultiplier,
+		Jitter:         true,
+	}
+
+	if err := retry.WithExponentialBackoff(ctx, retryCfg, op); err != nil {
+		return nil, fmt.Errorf("register with controller failed after retries: %w", lastErr)
+	}
+
+	agentID, _ := uc.repo.GetAgentID()
+	return &models.RegistrationResponse{AgentID: agentID}, nil
 }
 
-// RegisterWithController registers the agent with the controller
-func (uc *UseCase) RegisterWithController(ctx context.Context) wrapper.JSONResult {
-	_, err := uc.controllerClient.Register(ctx, "agent-hostname", "1.0.0", "2024-01-01T00:00:00Z")
+// FetchConfiguration fetches configuration using ETag conditional requests.
+func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuration, bool, error) {
+	curCfg, _ := uc.repo.GetCurrentConfig()
+	var curETag string
+	if curCfg != nil {
+		curETag = curCfg.ETag
+	}
+
+	agentID, _ := uc.repo.GetAgentID()
+	pollURL := uc.cfg.ControllerURL
+
+	cfg, newETag, notModified, err := uc.controller.GetConfiguration(ctx, agentID, pollURL, curETag)
 	if err != nil {
-		return wrapper.JSONResult{
-			Success: false,
-			Message: err.Error(),
+		return nil, false, err
+	}
+	if notModified {
+		return nil, true, nil
+	}
+
+	if cfg != nil {
+		cfg.ETag = newETag
+		if err := uc.repo.UpdateConfig(cfg); err != nil {
+			return nil, false, fmt.Errorf("update config repository: %w", err)
+		}
+		if err := uc.worker.SendConfiguration(ctx, cfg); err != nil {
+			return nil, false, fmt.Errorf("send configuration to worker: %w", err)
 		}
 	}
 
-	return wrapper.JSONResult{
-		Success: true,
-		Message: "Agent registered successfully",
-	}
-}
-
-func (uc *UseCase) FetchConfiguration(ctx context.Context) wrapper.JSONResult {
-
-	return wrapper.ResponseSuccess(http.StatusOK, nil)
+	return cfg, false, nil
 }

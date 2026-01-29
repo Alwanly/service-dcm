@@ -57,8 +57,23 @@ func main() {
 		Poller: poller,
 	}
 
-	// Initialize and register handler
-	handler.NewHandler(deps, cfg)
+	// Initialize handler (creates usecase/repo/clients)
+	h := handler.NewHandler(deps, cfg)
+
+	// perform registration before starting services (blocking with retries inside usecase)
+	regResp, err := h.RegisterAgent(context.Background())
+	if err != nil {
+		log.WithError(err).Fatal("agent registration failed")
+		// ensure process exits
+		os.Exit(1)
+	}
+
+	// register configuration poller using controller-provided interval
+	interval := 50
+	if regResp != nil && regResp.PollIntervalSeconds > 0 {
+		interval = regResp.PollIntervalSeconds
+	}
+	deps.Poller.RegisterFetchFunc("get-configure", h.GetConfigure, poll.PollerConfig{PollIntervalSeconds: interval})
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

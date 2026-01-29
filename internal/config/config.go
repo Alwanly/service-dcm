@@ -36,6 +36,8 @@ type AgentConfig struct {
 	RegistrationInitialBackoff    time.Duration
 	RegistrationMaxBackoff        time.Duration
 	RegistrationBackoffMultiplier float64
+	// Hostname used for registration
+	Hostname string
 }
 
 // RedisConfig holds Redis connection configuration
@@ -141,9 +143,18 @@ func LoadAgentConfig() (*AgentConfig, error) {
 		RegistrationInitialBackoff:    initialBackoff,
 		RegistrationMaxBackoff:        maxBackoff,
 		RegistrationBackoffMultiplier: multiplier,
+		Hostname:                      os.Getenv("AGENT_HOSTNAME"),
 	}
 
 	cfg.Redis = LoadRedisConfig()
+
+	if cfg.Hostname == "" {
+		if hn, err := os.Hostname(); err == nil {
+			cfg.Hostname = hn
+		} else {
+			cfg.Hostname = "agent-hostname"
+		}
+	}
 
 	return cfg, nil
 }

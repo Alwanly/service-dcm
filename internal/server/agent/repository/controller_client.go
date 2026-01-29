@@ -86,3 +86,64 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 
 	return &regResp, nil
 }
+
+// GetConfiguration fetches configuration from the controller or from a provided pollURL.
+// It supports conditional requests via If-None-Match and returns the new ETag when present.
+func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, bool, error) {
+	// determine URL to call
+	target := pollURL
+	if target == "" {
+		target = fmt.Sprintf("%s/configuration", c.baseURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("failed to create get configuration request: %w", err)
+	}
+
+	if agentID != "" {
+		req.Header.Set("X-Agent-ID", agentID)
+	}
+	if ifNoneMatch != "" {
+		req.Header.Set("If-None-Match", ifNoneMatch)
+	}
+
+	// basic auth if configured
+	if c.username != "" || c.password != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("get configuration request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, "", true, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, "", false, fmt.Errorf("get configuration returned status %d: %s", resp.StatusCode, string(b))
+	}
+
+	var cfg models.Configuration
+	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+		return nil, "", false, fmt.Errorf("failed to decode configuration: %w", err)
+	}
+
+	etag := resp.Header.Get("ETag")
+
+	// Optionally store agentID in local store if provided
+	if agentID != "" {
+		c.mutex.Lock()
+		if c.currentConfig == nil {
+			c.currentConfig = &StoreData{}
+		}
+		c.currentConfig.AgentID = agentID
+		c.mutex.Unlock()
+	}
+
+	return &cfg, etag, false, nil
+}

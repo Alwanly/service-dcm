@@ -36,6 +36,16 @@ func (r *Repository) SetAgentID(agentID string) error {
 	return nil
 }
 
+// GetAgentID returns the stored agent ID
+func (r *Repository) GetAgentID() (string, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		return "", nil
+	}
+	return r.currentConfig.AgentID, nil
+}
+
 // GetCurrentConfig retrieves the current worker configuration
 func (r *Repository) GetCurrentConfig() (*models.Configuration, error) {
 	r.mutex.Lock()
