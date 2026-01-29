@@ -9,20 +9,14 @@ services:
     image: service-controller:latest
     ports:
       - "8080:8080"
-    environment:
-      - CONTROLLER_ADDR=${CONTROLLER_ADDR:-:8080}
-      - DATABASE_PATH=${DATABASE_PATH:-/app/data/data.db}
-      - POLL_INTERVAL=${POLL_INTERVAL:-5}
-      - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - AGENT_USER=${AGENT_USER:-agent}
-      - AGENT_PASSWORD=${AGENT_PASSWORD:-agent}
+    env_file:
+      - .env
     volumes:
-      - controller-data:/app/data
+      - sdm-controller-data:/app/data
     networks:
       - sdm-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/controller/register"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -37,9 +31,8 @@ services:
     image: service-worker:latest
     ports:
       - "8082:8082"
-    environment:
-      - WORKER_ADDR=${WORKER_ADDR:-:8082}
-      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-10}
+    env_file:
+      - .env
     networks:
       - sdm-network
     healthcheck:
@@ -56,13 +49,11 @@ services:
       dockerfile: ./docker/agent/Dockerfile
     container_name: sdm-agent
     image: service-agent:latest
-    environment:
-      - CONTROLLER_URL=${CONTROLLER_URL:-http://controller:8080}
-      - WORKER_URL=${WORKER_URL:-http://worker:8082}
-      - POLL_INTERVAL=${POLL_INTERVAL:-5}
-      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-10}
-      - AGENT_USER=${AGENT_USER:-agent}
-      - AGENT_PASSWORD=${AGENT_PASSWORD:-agent}
+    env_file:
+      - .env
+    depends_on:
+      - controller
+      - worker
     networks:
       - sdm-network
     restart: unless-stopped
@@ -72,10 +63,10 @@ services:
     container_name: sdm-redis
     ports:
       - "6379:6379"
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    env_file:
+      - .env
     volumes:
-      - redis-data:/data
+      - sdm-redis-data:/data
     networks:
       - sdm-network
     restart: unless-stopped
@@ -83,9 +74,9 @@ services:
 networks:
   sdm-network:
     driver: bridge
-    name: sdm-network
 
 volumes:
-  controller-data:
+  sdm-controller-data:
     driver: local
-    name: sdm-controller-data
+  sdm-redis-data:
+    driver: local
