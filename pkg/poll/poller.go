@@ -68,8 +68,20 @@ func (p *poller) poll(ctx context.Context) {
 	}
 }
 
-// performPoll executes a single poll operation
+// performPoll executes a single poll operation with canonical logging
 func (p *poller) performPoll(ctx context.Context) {
+	// Create LogContext for this poll cycle
+	logCtx := logger.NewLogContext()
+
+	// Add LogContext to context for propagation to FetchFuncs
+	ctx = logger.WithLogContext(ctx, logCtx)
+
+	// Add initial poll cycle metadata
+	logCtx.AddFields(
+		zap.String(logger.FieldOperation, "poll_cycle"),
+		zap.Time("poll_start_time", time.Now()),
+	)
+
 	start := time.Now()
 
 	var fetchCount, successCount, failedCount int
@@ -78,18 +90,24 @@ func (p *poller) performPoll(ctx context.Context) {
 	defer func() {
 		duration := time.Since(start)
 
+		// Build final summary fields
 		fields := []zap.Field{
 			zap.Duration("duration", duration),
 			zap.Int64("duration_ms", duration.Milliseconds()),
-			zap.Int("fetch_count", fetchCount),
-			zap.Int("success_count", successCount),
-			zap.Int("failed_count", failedCount),
+			zap.Int(logger.FieldFetchCount, fetchCount),
+			zap.Int(logger.FieldSuccessCount, successCount),
+			zap.Int(logger.FieldFailedCount, failedCount),
 		}
 
+		// Add error details if any failures occurred
 		if len(errors) > 0 {
 			fields = append(fields, zap.Strings("errors", errors))
 		}
 
+		// Add all accumulated fields from FetchFuncs
+		fields = append(fields, logCtx.Fields()...)
+
+		// Single canonical log output
 		if failedCount > 0 {
 			p.logger.Error("poll_cycle_completed", fields...)
 		} else {
@@ -99,13 +117,26 @@ func (p *poller) performPoll(ctx context.Context) {
 
 	for name, meta := range p.fetchFuncs {
 		fetchCount++
+
+		// Add fetch-specific context for this iteration
+		logger.AddToContext(ctx, zap.String(logger.FieldPollName, name))
+
 		err := meta.FetchFunc(ctx, p.logger)
 		if err != nil {
 			failedCount++
 			errors = append(errors, fmt.Sprintf("%s: %v", name, err))
+
+			// Add failure context
+			logger.AddToContext(ctx,
+				zap.Bool(logger.FieldSuccess, false),
+				zap.Error(err),
+			)
 			continue
 		}
 		successCount++
+
+		// Add success context
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
 	}
 }
 
