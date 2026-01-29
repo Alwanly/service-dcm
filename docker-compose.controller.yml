@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: ./docker/controller/Dockerfile
+    container_name: sdm-controller
+    image: service-controller:latest
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.controller
+    volumes:
+      - sdm-controller-data:/app/data
+    restart: unless-stopped
+    networks:
+      - sdm-controller-network
+
+networks:
+  sdm-controller-network:
+    driver: bridge
+
+volumes:
+  sdm-controller-data:
+    driver: local

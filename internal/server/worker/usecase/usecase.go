@@ -20,6 +20,7 @@ import (
 type UseCaseInterface interface {
 	ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequest) wrapper.JSONResult
 	HitRequest(ctx context.Context) wrapper.JSONResult
+	GetCurrentConfig() *models.ConfigData
 }
 
 // UseCase implements the business logic for worker operations
@@ -120,4 +121,13 @@ func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 		Data: resp.Body,
 	}
 	return wrapper.ResponseSuccess(http.StatusOK, response)
+}
+
+// GetCurrentConfig returns the current configuration data (if any)
+func (uc *UseCase) GetCurrentConfig() *models.ConfigData {
+	data, err := uc.repo.GetCurrentConfig()
+	if err != nil || data == nil {
+		return nil
+	}
+	return &data.Config
 }

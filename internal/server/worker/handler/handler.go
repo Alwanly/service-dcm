@@ -28,6 +28,7 @@ func NewHandler(d deps.App, timeout time.Duration) *Handler {
 	}
 
 	// register routes on fiber app
+	d.Fiber.Get("/health", h.health)
 	d.Fiber.Post("/config", h.receiveConfig)
 	d.Fiber.Post("/hit", h.hit)
 
@@ -76,4 +77,29 @@ func (h *Handler) hit(c *fiber.Ctx) error {
 	res := h.UseCase.HitRequest(c.UserContext())
 
 	return c.Status(res.Code).JSON(res)
+}
+
+// health godoc
+// @Summary     Health check
+// @Description Get worker health status and current configuration state
+// @Tags        health
+// @Accept      json
+// @Produce     json
+// @Success     200 {object} dto.HealthCheckResponse
+// @Router      /health [get]
+func (h *Handler) health(c *fiber.Ctx) error {
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "health_check"))
+
+	cfg := h.UseCase.GetCurrentConfig()
+
+	response := dto.HealthCheckResponse{
+		Status:     "healthy",
+		Configured: cfg != nil,
+	}
+
+	if cfg != nil {
+		response.TargetURL = cfg.URL
+	}
+
+	return c.JSON(response)
 }

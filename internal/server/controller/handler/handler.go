@@ -34,6 +34,9 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 		UseCase: uc,
 	}
 
+	// Health check endpoint (no auth required)
+	d.Fiber.Get("/health", h.health)
+
 	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
 	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
 	d.Fiber.Get("/config", d.Middleware.BasicAuth(), h.getConfig)
@@ -129,4 +132,18 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 
 	res := h.UseCase.GetConfig(c.UserContext(), req)
 	return c.Status(res.Code).JSON(res.Data)
+}
+
+// health godoc
+// @Summary     Health check
+// @Description Get controller health status (unauthenticated)
+// @Tags        health
+// @Accept      json
+// @Produce     json
+// @Success     200 {object} map[string]string
+// @Router      /health [get]
+func (h *Handler) health(c *fiber.Ctx) error {
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "health_check"))
+
+	return c.JSON(fiber.Map{"status": "healthy"})
 }
