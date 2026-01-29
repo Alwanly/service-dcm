@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -56,7 +55,7 @@ func (uc *UseCase) RegisterAgent(ctx context.Context, req *dto.RegisterAgentRequ
 		zap.Bool(logger.FieldSuccess, true),
 	)
 
-	pollURL := fmt.Sprintf("http://%s/config", uc.Config.ServerAddr)
+	pollURL := "/config"
 	pollInterval := int(uc.Config.PollInterval.Seconds())
 
 	return wrapper.ResponseSuccess(http.StatusOK, dto.RegisterAgentResponse{

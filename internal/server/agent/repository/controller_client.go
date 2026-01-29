@@ -83,6 +83,8 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 		c.currentConfig = &StoreData{}
 	}
 	c.currentConfig.AgentID = regResp.AgentID
+	c.currentConfig.PollURL = regResp.PollURL
+	c.currentConfig.PollInterval = regResp.PollIntervalSeconds
 
 	return &regResp, nil
 }
@@ -91,10 +93,8 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 // It supports conditional requests via If-None-Match and returns the new ETag when present.
 func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, bool, error) {
 	// determine URL to call
-	target := pollURL
-	if target == "" {
-		target = fmt.Sprintf("%s/configuration", c.baseURL)
-	}
+
+	target := fmt.Sprintf("%s%s", c.baseURL, c.currentConfig.PollURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {

@@ -30,4 +30,8 @@ type IRepository interface {
 	GetCurrentConfig() (*models.Configuration, error)
 	// UpdateConfig updates the worker configuration
 	UpdateConfig(config *models.Configuration) error
+	// SetPollInfo sets the poll URL and interval
+	SetPollInfo(pollURL string, pollInterval int) error
+	// GetPollInfo retrieves the poll URL and interval
+	GetPollInfo() (string, int, error)
 }

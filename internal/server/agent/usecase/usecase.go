@@ -38,6 +38,10 @@ func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTi
 			lastErr = fmt.Errorf("persist agent id: %w", err)
 			return lastErr
 		}
+		if err := uc.repo.SetPollInfo(resp.PollURL, resp.PollIntervalSeconds); err != nil {
+			lastErr = fmt.Errorf("persist poll info: %w", err)
+			return lastErr
+		}
 		return nil
 	}
 
@@ -54,7 +58,8 @@ func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTi
 	}
 
 	agentID, _ := uc.repo.GetAgentID()
-	return &models.RegistrationResponse{AgentID: agentID}, nil
+	_, poll, _ := uc.repo.GetPollInfo()
+	return &models.RegistrationResponse{AgentID: agentID, PollIntervalSeconds: poll}, nil
 }
 
 // FetchConfiguration fetches configuration using ETag conditional requests.
@@ -66,7 +71,7 @@ func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuratio
 	}
 
 	agentID, _ := uc.repo.GetAgentID()
-	pollURL := uc.cfg.ControllerURL
+	pollURL, _, _ := uc.repo.GetPollInfo()
 
 	cfg, newETag, notModified, err := uc.controller.GetConfiguration(ctx, agentID, pollURL, curETag)
 	if err != nil {

@@ -7,9 +7,11 @@ import (
 )
 
 type StoreData struct {
-	Config  *models.Configuration
-	ETag    string
-	AgentID string
+	Config       *models.Configuration
+	ETag         string
+	AgentID      string
+	PollURL      string
+	PollInterval int
 }
 
 type Repository struct {
@@ -65,4 +67,26 @@ func (r *Repository) UpdateConfig(config *models.Configuration) error {
 		ETag:   config.ETag,
 	}
 	return nil
+}
+
+// SetPollInfo sets the poll URL and interval
+func (r *Repository) SetPollInfo(pollURL string, pollInterval int) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		r.currentConfig = &StoreData{}
+	}
+	r.currentConfig.PollURL = pollURL
+	r.currentConfig.PollInterval = pollInterval
+	return nil
+}
+
+// GetPollInfo retrieves the poll URL and interval
+func (r *Repository) GetPollInfo() (string, int, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		return "", 0, nil
+	}
+	return r.currentConfig.PollURL, r.currentConfig.PollInterval, nil
 }
