@@ -57,7 +57,7 @@ func (h *Handler) GetConfigure(ctx context.Context) error {
 		return nil
 	}
 	if cfg != nil {
-		h.logger.WithConfigVersion(cfg.ID).Info("configuration updated")
+		h.logger.WithConfigVersion(cfg.ETag).Info("configuration updated")
 	}
 	return nil
 }

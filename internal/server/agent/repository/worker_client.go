@@ -10,6 +10,7 @@ import (
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/Alwanly/service-distribute-management/internal/server/agent/dto"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
@@ -31,12 +32,27 @@ func NewWorkerClient(cfg *config.AgentConfig, log *logger.CanonicalLogger) IWork
 // SendConfiguration sends the configuration to the worker
 func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Configuration) error {
 	url := fmt.Sprintf("%s/config", w.baseURL)
-	data, err := json.Marshal(config)
+
+	configData := new(models.ConfigData)
+	if config.ConfigData == "" {
+		return fmt.Errorf("config data is empty for configuration ID %s", config.ETag)
+	}
+
+	if err := json.Unmarshal([]byte(config.ConfigData), configData); err != nil {
+		return fmt.Errorf("failed to unmarshal config data for ID %s: %w", config.ETag, err)
+	}
+
+	rawRequestBody := dto.SendConfigRequest{
+		ID:         config.ID,
+		ETag:       config.ETag,
+		ConfigData: *configData,
+	}
+	requestBody, err := json.Marshal(rawRequestBody)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(requestBody))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

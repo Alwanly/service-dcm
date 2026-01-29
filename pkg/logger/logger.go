@@ -77,8 +77,8 @@ func (c *CanonicalLogger) WithAgentID(id string) *CanonicalLogger {
 	return &CanonicalLogger{l: c.l.With(zap.String("agent_id", id))}
 }
 
-func (c *CanonicalLogger) WithConfigVersion(v int64) *CanonicalLogger {
-	return &CanonicalLogger{l: c.l.With(zap.Int64("config_version", v))}
+func (c *CanonicalLogger) WithConfigVersion(v string) *CanonicalLogger {
+	return &CanonicalLogger{l: c.l.With(zap.String("config_version", v))}
 }
 
 func (c *CanonicalLogger) Component(name string) *CanonicalLogger {

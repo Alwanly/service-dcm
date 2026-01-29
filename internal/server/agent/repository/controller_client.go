@@ -11,6 +11,7 @@ import (
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/Alwanly/service-distribute-management/internal/server/agent/dto"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
@@ -128,12 +129,20 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		return nil, "", false, fmt.Errorf("get configuration returned status %d: %s", resp.StatusCode, string(b))
 	}
 
-	var cfg models.Configuration
-	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+	var respBody dto.ConfigurationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
 		return nil, "", false, fmt.Errorf("failed to decode configuration: %w", err)
 	}
-
-	etag := resp.Header.Get("ETag")
+	cfg := models.Configuration{
+		ID:         respBody.ID,
+		ETag:       respBody.ETag,
+		ConfigData: "",
+	}
+	configDataBytes, err := json.Marshal(respBody.Config)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("failed to marshal configuration data: %w", err)
+	}
+	cfg.ConfigData = string(configDataBytes)
 
 	// Optionally store agentID in local store if provided
 	if agentID != "" {
@@ -145,5 +154,5 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		c.mutex.Unlock()
 	}
 
-	return &cfg, etag, false, nil
+	return &cfg, cfg.ETag, false, nil
 }

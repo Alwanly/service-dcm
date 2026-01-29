@@ -7,7 +7,9 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent/repository"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/retry"
+	"go.uber.org/zap"
 )
 
 type UseCase struct {
@@ -74,10 +76,17 @@ func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuratio
 	pollURL, _, _ := uc.repo.GetPollInfo()
 
 	cfg, newETag, notModified, err := uc.controller.GetConfiguration(ctx, agentID, pollURL, curETag)
+	logger.AddToContext(ctx,
+		zap.String("agent_id", agentID),
+		zap.String("poll_url", pollURL),
+		zap.String("if_none_match", curETag),
+	)
 	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return nil, false, err
 	}
 	if notModified {
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
 		return nil, true, nil
 	}
 

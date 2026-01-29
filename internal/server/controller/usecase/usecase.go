@@ -82,11 +82,16 @@ func (uc *UseCase) UpdateConfig(ctx context.Context, req *dto.SetConfigAgentRequ
 	return wrapper.ResponseSuccess(http.StatusOK, "Config updated successfully")
 }
 
-func (uc *UseCase) GetConfig(ctx context.Context) wrapper.JSONResult {
+func (uc *UseCase) GetConfig(ctx context.Context, req *dto.GetConfigAgentRequest) wrapper.JSONResult {
 	etag, err := uc.Repo.GetConfigETag(ctx)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to get config", err)
+	}
+
+	if etag == req.ETag {
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
+		return wrapper.ResponseSuccess(http.StatusNotModified, nil)
 	}
 
 	configData, err := uc.Repo.GetConfig(ctx, etag)

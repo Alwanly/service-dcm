@@ -70,12 +70,15 @@ func (p *poller) poll(ctx context.Context) {
 // performPoll executes a single poll operation
 func (p *poller) performPoll(ctx context.Context) {
 	for name, meta := range p.fetchFuncs {
+		logger.AddToContext(ctx, zap.String("poll_name", name))
 		err := meta.FetchFunc(ctx)
 		if err != nil {
-			p.logger.WithError(err).Error("failed to fetch configuration", zap.String("name", name))
+			logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+			p.logger.Error("failed to fetch configuration", zap.String("name", name), zap.Error(err))
 			continue
 		}
 		p.logger.Info("successfully fetched configuration", zap.String("name", name))
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
 	}
 }
 

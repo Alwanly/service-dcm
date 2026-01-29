@@ -119,6 +119,14 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 	// Enrich log context
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "get_config"))
 
-	res := h.UseCase.GetConfig(c.UserContext())
+	req := new(dto.GetConfigAgentRequest)
+
+	// get ETag from header
+	headers := c.GetReqHeaders()
+	if etag, exists := headers["If-None-Match"]; exists {
+		req.ETag = etag[0]
+	}
+
+	res := h.UseCase.GetConfig(c.UserContext(), req)
 	return c.Status(res.Code).JSON(res.Data)
 }
