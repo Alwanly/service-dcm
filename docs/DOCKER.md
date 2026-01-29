@@ -1,5 +1,87 @@
 # Docker Deployment Guide
 
+> **Quick Links**
+> - [Local Development](#local-development-all-in-one) - All services on one machine
+> - [Standalone Controller](#standalone-controller-deployment) - Deploy Controller separately
+> - [Distributed Agent+Worker](#distributed-agent--worker-deployment) - Deploy Agent+Worker pairs
+
+## Deployment Scenarios
+
+This project supports three deployment configurations:
+
+### 1. Local Development (All-in-One)
+
+All services running together on a single machine for development and testing.
+
+Use when: Developing locally, running tests, quick demonstrations
+
+File: `docker-compose.yml`
+
+```bash
+docker-compose up -d
+```
+
+### 2. Standalone Controller Deployment
+
+Controller service with database, deployed independently from Agent+Worker pairs.
+
+Use when: Setting up a central configuration management server
+
+File: `docker-compose.controller.yml`
+
+```bash
+docker-compose -f docker-compose.controller.yml --env-file .env.controller up -d
+```
+
+### 3. Distributed Agent + Worker Deployment
+
+Agent and Worker services deployed together, connecting to an external Controller.
+
+Use when: Deploying distributed pairs across multiple locations, all managed by a central Controller
+
+File: `docker-compose.agent-worker.yml`
+
+```bash
+docker-compose -f docker-compose.agent-worker.yml --env-file .env.agent-worker up -d
+```
+
+---
+
+## Local Development (All-in-One)
+
+### Quick Start
+
+1. **Clone the repository and navigate to project root**
+
+2. **Create environment file:**
+  ```bash
+  cp .env.example .env
+  ```
+
+3. **Edit `.env` and set secure passwords:**
+  ```bash
+  # Change these values!
+  ADMIN_PASSWORD=your-secure-admin-password
+  AGENT_PASSWORD=your-secure-agent-password
+  ```
+
+4. **Start all services:**
+  ```bash
+  docker-compose up -d
+  ```
+
+5. **Verify services are running:**
+  ```bash
+  docker-compose ps
+  ```
+
+6. **Test the controller health endpoint:**
+  ```bash
+  curl http://localhost:8080/health
+  ```
+
+This section supplements the existing content below.
+
 This guide explains how to build, run, and manage the Service Distribute Management system using Docker and Docker Compose.
 
 ## Table of Contents
