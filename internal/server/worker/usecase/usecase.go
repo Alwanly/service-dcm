@@ -1,11 +1,17 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/Alwanly/service-distribute-management/internal/models"
@@ -95,16 +101,41 @@ func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to create request", nil)
 	}
 	// Set proxy if configured
+	client := uc.httpClient
 	if data.Config.Proxy != "" {
-		proxyURL, err := http.ProxyFromEnvironment(req)
+		proxyURL, err := parseProxyURL(data.Config.Proxy)
 		if err != nil {
 			logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
-			return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to set proxy", nil)
+			return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to parse proxy", nil)
 		}
-		req.URL = proxyURL
+
+		transport := &http.Transport{
+			Proxy:                 http.ProxyURL(proxyURL),
+			DisableKeepAlives:     true,
+			DisableCompression:    false,
+			MaxIdleConns:          0,
+			MaxIdleConnsPerHost:   -1,
+			IdleConnTimeout:       0,
+			TLSHandshakeTimeout:   30 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+		client = &http.Client{
+			Timeout:   uc.httpClient.Timeout,
+			Transport: transport,
+		}
+
+		logger.AddToContext(ctx,
+			zap.String("proxy_url", proxyURL.Host),
+			zap.Bool("proxy_configured", true),
+		)
 	}
+
+	// Set headers
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Connection", "close")
 	// Perform HTTP request
-	resp, err := uc.httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to perform request", nil)
@@ -113,12 +144,27 @@ func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 	logger.AddToContext(ctx,
 		zap.Bool(logger.FieldSuccess, true),
 		zap.String(logger.FieldTargetURL, data.Config.URL),
+		zap.Int("status_code", resp.StatusCode),
 	)
+
+	var respBody []byte
+	respBody, err = io.ReadAll(resp.Body)
+	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to read response body", nil)
+	}
+
+	// Parse HTML to extract IP address from class "ip-address"
+	respData, err := extractIPFromHTML(respBody)
+	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to parse HTML response", nil)
+	}
 
 	response := &dto.HitResponse{
 		ETag: data.ETag,
 		URL:  data.Config.URL,
-		Data: resp.Body,
+		Data: respData,
 	}
 	return wrapper.ResponseSuccess(http.StatusOK, response)
 }
@@ -130,4 +176,40 @@ func (uc *UseCase) GetCurrentConfig() *models.ConfigData {
 		return nil
 	}
 	return &data.Config
+}
+
+func extractIPFromHTML(htmlData []byte) (string, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(htmlData))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse HTML: %w", err)
+	}
+
+	ipValue, exists := doc.Find("input[name='ip']").First().Attr("value")
+	if !exists || ipValue == "" {
+		return "", fmt.Errorf("input element with name='ip' or its value not found in HTML")
+	}
+
+	return strings.TrimSpace(ipValue), nil
+}
+
+func parseProxyURL(proxy string) (*url.URL, error) {
+	// Handle format: host:port:username:password
+	parts := strings.Split(proxy, ":")
+	if len(parts) == 4 {
+		host := parts[0]
+		port := parts[1]
+		username := parts[2]
+		password := parts[3]
+
+		// Construct proxy URL with authentication: http://username:password@host:port
+		proxyURLString := fmt.Sprintf("http://%s:%s@%s:%s", username, password, host, port)
+		return url.Parse(proxyURLString)
+	}
+
+	// Handle standard format: http://host:port or host:port
+	if !strings.HasPrefix(proxy, "http://") && !strings.HasPrefix(proxy, "https://") {
+		proxy = "http://" + proxy
+	}
+
+	return url.Parse(proxy)
 }
