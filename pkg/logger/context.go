@@ -24,6 +24,12 @@ const (
 	FieldProxyStatus   = "proxy_status"
 	FieldSuccess       = "success"
 	FieldETag          = "etag"
+
+	// Poller-specific field names
+	FieldPollName     = "poll_name"
+	FieldFetchCount   = "fetch_count"
+	FieldSuccessCount = "success_count"
+	FieldFailedCount  = "failed_count"
 )
 
 // LogContext accumulates log fields throughout request lifecycle

@@ -2,6 +2,8 @@ package poll
 
 import (
 	"context"
+
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
 // ConfigUpdateMessage represents a configuration update notification
@@ -31,4 +33,6 @@ type Poller interface {
 
 // FetchFunc is a function that fetches the latest configuration
 // Returns the config, current ETag, and any error
-type FetchFunc func(ctx context.Context) error
+// FetchFunc is a function that fetches the latest configuration
+// It accepts a context and a logger for debugging and correlation
+type FetchFunc func(ctx context.Context, logger *logger.CanonicalLogger) error

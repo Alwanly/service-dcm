@@ -46,18 +46,6 @@ func (h *Handler) RegisterAgent(ctx context.Context) (*models.RegistrationRespon
 
 // GetConfigure is a poller fetch function that fetches configuration from the controller
 // using the usecase and returns an error on failure.
-func (h *Handler) GetConfigure(ctx context.Context) error {
-	cfg, notModified, err := h.useCase.FetchConfiguration(ctx)
-	if err != nil {
-		h.logger.WithError(err).Error("fetch configuration error")
-		return err
-	}
-	if notModified {
-		h.logger.Info("configuration not modified")
-		return nil
-	}
-	if cfg != nil {
-		h.logger.WithConfigVersion(cfg.ETag).Info("configuration updated")
-	}
-	return nil
+func (h *Handler) GetConfigure(ctx context.Context, log *logger.CanonicalLogger) error {
+	return h.useCase.GetConfigure(ctx, log)
 }

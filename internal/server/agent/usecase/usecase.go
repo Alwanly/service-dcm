@@ -64,6 +64,30 @@ func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTi
 	return &models.RegistrationResponse{AgentID: agentID, PollIntervalSeconds: poll}, nil
 }
 
+// GetConfigure is a FetchFunc implementation that polls for configuration updates.
+// It wraps FetchConfiguration and uses the provided logger for debugging.
+func (uc *UseCase) GetConfigure(ctx context.Context, log *logger.CanonicalLogger) error {
+	log.Debug("starting configuration fetch")
+
+	cfg, notModified, err := uc.FetchConfiguration(ctx)
+	if err != nil {
+		log.Error("configuration fetch failed", zap.Error(err))
+		return err
+	}
+
+	if notModified {
+		log.Debug("configuration not modified")
+		return nil
+	}
+
+	if cfg != nil {
+		log.Info("configuration updated",
+			zap.String("etag", cfg.ETag))
+	}
+
+	return nil
+}
+
 // FetchConfiguration fetches configuration using ETag conditional requests.
 func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuration, bool, error) {
 	curCfg, _ := uc.repo.GetCurrentConfig()

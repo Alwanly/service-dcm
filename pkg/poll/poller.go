@@ -2,6 +2,7 @@ package poll
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
@@ -69,16 +70,42 @@ func (p *poller) poll(ctx context.Context) {
 
 // performPoll executes a single poll operation
 func (p *poller) performPoll(ctx context.Context) {
+	start := time.Now()
+
+	var fetchCount, successCount, failedCount int
+	var errors []string
+
+	defer func() {
+		duration := time.Since(start)
+
+		fields := []zap.Field{
+			zap.Duration("duration", duration),
+			zap.Int64("duration_ms", duration.Milliseconds()),
+			zap.Int("fetch_count", fetchCount),
+			zap.Int("success_count", successCount),
+			zap.Int("failed_count", failedCount),
+		}
+
+		if len(errors) > 0 {
+			fields = append(fields, zap.Strings("errors", errors))
+		}
+
+		if failedCount > 0 {
+			p.logger.Error("poll_cycle_completed", fields...)
+		} else {
+			p.logger.Info("poll_cycle_completed", fields...)
+		}
+	}()
+
 	for name, meta := range p.fetchFuncs {
-		logger.AddToContext(ctx, zap.String("poll_name", name))
-		err := meta.FetchFunc(ctx)
+		fetchCount++
+		err := meta.FetchFunc(ctx, p.logger)
 		if err != nil {
-			logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
-			p.logger.Error("failed to fetch configuration", zap.String("name", name), zap.Error(err))
+			failedCount++
+			errors = append(errors, fmt.Sprintf("%s: %v", name, err))
 			continue
 		}
-		p.logger.Info("successfully fetched configuration", zap.String("name", name))
-		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
+		successCount++
 	}
 }
 
