@@ -20,6 +20,7 @@ services:
 networks:
   sdm-controller-network:
     driver: bridge
+    name: sdm-controller-network
 
 volumes:
   sdm-controller-data:

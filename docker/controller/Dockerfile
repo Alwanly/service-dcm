@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.4-alpine AS builder
+FROM golang:1.25.6-alpine3.23 AS builder
 
 # Install build dependencies for CGO and SQLite
 RUN apk add --no-cache gcc musl-dev sqlite-dev
@@ -10,8 +10,14 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Install swag for generating swagger docs
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
 # Copy source code
 COPY . .
+
+# Generate swagger documentation
+RUN swag init -g cmd/controller/main.go -o docs/controller
 
 # Build with CGO enabled for SQLite
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o controller ./cmd/controller
@@ -34,9 +40,6 @@ RUN mkdir -p /app/data
 # Expose controller port
 EXPOSE 8080
 
-# Copy and set up entrypoint script (light wrapper)
-COPY scripts/init-controller.sh /app/scripts/
-RUN chmod +x /app/scripts/init-controller.sh
 
 # Run as non-root user
 RUN addgroup -g 1000 appuser && \
@@ -50,8 +53,5 @@ ENV CONTROLLER_ADDR=:8080 \
     DATABASE_PATH=/app/data/data.db \
     POLL_INTERVAL=5
 
-# Add health check
-HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["/app/controller"]

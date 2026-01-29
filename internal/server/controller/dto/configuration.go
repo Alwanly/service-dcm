@@ -6,11 +6,6 @@ type SetConfigAgentRequest struct {
 	Proxy string `json:"proxy" example:"http://proxy.example.com:8080" validate:"omitempty,url"`
 }
 
-// SetConfigAgentResponse represents the response after setting configuration
-type SetConfigAgentResponse struct {
-	Success bool `json:"success" example:"true"`
-}
-
 // GetConfigAgentRequest represents the request to get worker configuration
 type GetConfigAgentRequest struct {
 	ETag string `json:"etag" example:"1"`
@@ -18,7 +13,7 @@ type GetConfigAgentRequest struct {
 
 // GetConfigAgentResponse represents the response when retrieving configuration
 type GetConfigAgentResponse struct {
-	ID     int64       `json:"id" example:"config-123"`
+	ID     int64       `json:"id" example:"1"`
 	ETag   string      `json:"etag" example:"1"`
 	Config interface{} `json:"config" swaggertype:"object"`
 }

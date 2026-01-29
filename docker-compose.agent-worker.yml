@@ -42,6 +42,7 @@ services:
         condition: service_healthy
     networks:
       - sdm-agent-worker-network
+      - sdm-controller-network
     restart: unless-stopped
     deploy:
       resources:
@@ -55,4 +56,6 @@ services:
 networks:
   sdm-agent-worker-network:
     driver: bridge
+  sdm-controller-network:
+    external: true
 

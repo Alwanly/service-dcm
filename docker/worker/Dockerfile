@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.4-alpine AS builder
+FROM golang:1.25.6-alpine3.23 AS builder
 
 WORKDIR /build
 
@@ -7,8 +7,14 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Install swag for generating swagger docs
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
 # Copy source code
 COPY . .
+
+# Generate swagger documentation
+RUN swag init -g cmd/worker/main.go -o docs/worker
 
 # Build worker (no CGO needed)
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o worker ./cmd/worker
@@ -37,9 +43,5 @@ ENV WORKER_ADDR=:8082 \
 
 # Expose worker port
 EXPOSE 8082
-
-# Add health check
-HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:8082/health || exit 1
 
 ENTRYPOINT ["/app/worker"]

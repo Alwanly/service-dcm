@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.4-alpine AS builder
+FROM golang:1.25.6-alpine3.23 AS builder
 
 WORKDIR /build
 
