@@ -284,11 +284,13 @@ func (r *Repository) UpdateAgentHeartbeat(agentID string, configVersion string) 
 	var agent models.Agent
 	now := time.Now().UTC()
 
-	result := r.DB.Model(&models.Agent{}).Where("agent_id = ?", agentID).Updates(map[string]interface{}{
-		"last_heartbeat":      &now,
-		"last_config_version": configVersion,
-		"updated_at":          time.Now().UTC(),
-	})
+	result := r.DB.Model(&models.Agent{}).
+		Where("agent_id = ?", agentID).
+		Save(map[string]interface{}{
+			"agent_id":            agentID,
+			"last_heartbeat":      now,
+			"last_config_version": configVersion,
+		})
 	if result.Error != nil {
 		return nil, fmt.Errorf("failed to update agent heartbeat: %w", result.Error)
 	}
