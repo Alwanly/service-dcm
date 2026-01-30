@@ -2,16 +2,23 @@ package repository
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Repository struct {
 	DB *gorm.DB
+}
+
+func NewRepository(db *gorm.DB) *Repository {
+	return &Repository{DB: db}
 }
 
 type IRepository interface {
@@ -22,13 +29,134 @@ type IRepository interface {
 	GetConfigIfChanged(currentETag string) (string, models.ConfigData, error)
 }
 
-func NewRepository(db *gorm.DB) *Repository {
-	return &Repository{DB: db}
-}
-
 func (r *Repository) RegisterAgent(ctx context.Context, data *models.Agent) error {
 	result := r.DB.WithContext(ctx).Create(data)
 	return result.Error
+}
+
+// CreateAgent creates a new agent with UUID and API token
+func (r *Repository) CreateAgent(agentName string, pollIntervalSeconds *int) (*models.AgentConfig, error) {
+	// Generate UUID v7 for agent ID
+	agentID := uuid.Must(uuid.NewV7()).String()
+
+	// Generate secure random API token (32 bytes = 64 hex chars)
+	apiToken, err := generateSecureToken(32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate api token: %w", err)
+	}
+
+	agent := &models.AgentConfig{
+		ID:                  agentID,
+		AgentName:           agentName,
+		APIToken:            apiToken,
+		PollIntervalSeconds: pollIntervalSeconds,
+	}
+
+	if err := r.DB.Create(agent).Error; err != nil {
+		return nil, fmt.Errorf("failed to create agent: %w", err)
+	}
+
+	return agent, nil
+}
+
+// GetAgentByID retrieves an agent by UUID
+func (r *Repository) GetAgentByID(agentID string) (*models.AgentConfig, error) {
+	var agent models.AgentConfig
+	if err := r.DB.Where("id = ?", agentID).First(&agent).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("agent not found: %s", agentID)
+		}
+		return nil, fmt.Errorf("failed to get agent: %w", err)
+	}
+	return &agent, nil
+}
+
+// GetAgentByToken retrieves an agent by API token
+func (r *Repository) GetAgentByToken(apiToken string) (*models.AgentConfig, error) {
+	var agent models.AgentConfig
+	if err := r.DB.Where("api_token = ?", apiToken).First(&agent).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("agent not found")
+		}
+		return nil, fmt.Errorf("failed to get agent: %w", err)
+	}
+	return &agent, nil
+}
+
+// UpdateAgentPollInterval updates the polling interval for an agent
+func (r *Repository) UpdateAgentPollInterval(agentID string, intervalSeconds *int) error {
+	result := r.DB.Model(&models.AgentConfig{}).
+		Where("id = ?", agentID).
+		Update("poll_interval_seconds", intervalSeconds)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to update poll interval: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("agent not found: %s", agentID)
+	}
+
+	return nil
+}
+
+// RotateAgentToken generates a new API token for an agent
+func (r *Repository) RotateAgentToken(agentID string) (string, error) {
+	newToken, err := generateSecureToken(32)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate new token: %w", err)
+	}
+
+	result := r.DB.Model(&models.AgentConfig{}).
+		Where("id = ?", agentID).
+		Update("api_token", newToken)
+
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to rotate token: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return "", fmt.Errorf("agent not found: %s", agentID)
+	}
+
+	return newToken, nil
+}
+
+// ListAgents retrieves all registered agents
+func (r *Repository) ListAgents() ([]models.AgentPublic, error) {
+	var agents []models.AgentConfig
+	if err := r.DB.Order("created_at DESC").Find(&agents).Error; err != nil {
+		return nil, fmt.Errorf("failed to list agents: %w", err)
+	}
+
+	public := make([]models.AgentPublic, len(agents))
+	for i, a := range agents {
+		public[i] = a.ToPublic()
+	}
+	return public, nil
+}
+
+// DeleteAgent removes an agent by ID
+func (r *Repository) DeleteAgent(agentID string) error {
+	result := r.DB.Delete(&models.AgentConfig{}, "id = ?", agentID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete agent: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("agent not found: %s", agentID)
+	}
+
+	return nil
+}
+
+// generateSecureToken creates a cryptographically secure random token
+func generateSecureToken(byteLength int) (string, error) {
+	bytes := make([]byte, byteLength)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 func generateETag(config string) string {

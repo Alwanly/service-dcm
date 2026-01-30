@@ -33,3 +33,19 @@ CREATE INDEX IF NOT EXISTS idx_configurations_created_at ON configurations(creat
 -- Insert default configuration if none exists
 INSERT OR IGNORE INTO configurations (id, etag, config_data, created_at)
 VALUES (1, '1', '{}', CURRENT_TIMESTAMP);
+
+-- Migration: Add agent_configs table for per-agent authentication and configuration
+CREATE TABLE IF NOT EXISTS agent_configs (
+    id TEXT PRIMARY KEY,                    -- UUID v7
+    agent_name TEXT NOT NULL,               -- Hostname from registration
+    api_token TEXT NOT NULL UNIQUE,         -- Bearer token for authentication
+    poll_interval_seconds INTEGER,          -- Per-agent interval (NULL = use global default)
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for fast token lookup during authentication
+CREATE INDEX IF NOT EXISTS idx_agent_configs_api_token ON agent_configs(api_token);
+
+-- Index for listing agents by name
+CREATE INDEX IF NOT EXISTS idx_agent_configs_agent_name ON agent_configs(agent_name);

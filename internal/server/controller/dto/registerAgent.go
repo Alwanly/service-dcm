@@ -1,12 +1,16 @@
 package dto
 
-// RegisterAgentRequest represents the agent registration request
+// RegisterAgentRequest is the request body for agent registration
 type RegisterAgentRequest struct {
+	Hostname  string `json:"hostname" validate:"required"`
+	StartTime string `json:"start_time" validate:"required"`
 }
 
-// RegisterAgentResponse represents the agent registration response
+// RegisterAgentResponse is the response for successful agent registration
 type RegisterAgentResponse struct {
-	AgentID             string `json:"agent_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	PollURL             string `json:"poll_url" example:"http://localhost:8080/config"`
-	PollIntervalSeconds int    `json:"poll_interval_seconds" example:"5"`
+	AgentID             string `json:"agent_id"`              // UUID
+	AgentName           string `json:"agent_name"`            // Hostname
+	APIToken            string `json:"api_token"`             // Bearer token for authentication
+	PollURL             string `json:"poll_url"`              // Endpoint to poll for configuration
+	PollIntervalSeconds int    `json:"poll_interval_seconds"` // Polling interval
 }

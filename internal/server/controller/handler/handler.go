@@ -37,9 +37,14 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 	// Health check endpoint (no auth required)
 	d.Fiber.Get("/health", h.health)
 
-	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
+	// Public registration endpoint (agents register without Bearer token)
+	d.Fiber.Post("/register", h.register)
+
+	// Admin-protected endpoint to set configuration
 	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
-	d.Fiber.Get("/config", d.Middleware.BasicAuth(), h.getConfig)
+
+	// Agent-authenticated endpoint for fetching configuration
+	d.Fiber.Get("/config", middleware.AgentTokenAuth(d.Database, d.Logger), h.getConfig)
 
 	return h
 }
@@ -122,15 +127,31 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 	// Enrich log context
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "get_config"))
 
-	req := new(dto.GetConfigAgentRequest)
-
-	// get ETag from header
-	headers := c.GetReqHeaders()
-	if etag, exists := headers["If-None-Match"]; exists {
-		req.ETag = etag[0]
+	// Extract agent ID from context (set by middleware)
+	agentID, ok := c.Locals(middleware.AgentIDContextKey).(string)
+	if !ok || agentID == "" {
+		h.Logger.Error("agent_id not found in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "authentication context error"})
 	}
 
-	res := h.UseCase.GetConfig(c.UserContext(), req)
+	// Get If-None-Match header for ETag comparison
+	etag := c.Get("If-None-Match")
+
+	// Get configuration for this agent
+	res := h.UseCase.GetConfigForAgent(agentID, etag)
+
+	// Handle 304 Not Modified
+	if res.Code == fiber.StatusNotModified {
+		return c.SendStatus(fiber.StatusNotModified)
+	}
+
+	// Set ETag header if present
+	if data, ok := res.Data.(dto.GetConfigAgentResponse); ok {
+		if data.ETag != "" {
+			c.Set("ETag", data.ETag)
+		}
+	}
+
 	return c.Status(res.Code).JSON(res.Data)
 }
 

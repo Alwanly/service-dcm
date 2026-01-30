@@ -29,6 +29,8 @@ type Poller interface {
 	Stop() error
 	// RegisterFetchFunc and config retrieval function
 	RegisterFetchFunc(name string, fetchFunc FetchFunc, config PollerConfig)
+	// UpdateInterval updates the polling interval for a registered fetch function
+	UpdateInterval(name string, newIntervalSeconds int) error
 }
 
 // FetchFunc is a function that fetches the latest configuration

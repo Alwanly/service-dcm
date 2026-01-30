@@ -12,6 +12,7 @@ type StoreData struct {
 	AgentID      string
 	PollURL      string
 	PollInterval int
+	APIToken     string
 }
 
 type Repository struct {
@@ -89,4 +90,55 @@ func (r *Repository) GetPollInfo() (string, int, error) {
 		return "", 0, nil
 	}
 	return r.currentConfig.PollURL, r.currentConfig.PollInterval, nil
+}
+
+// SetAPIToken stores the API token for future requests
+func (r *Repository) SetAPIToken(token string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		r.currentConfig = &StoreData{}
+	}
+	r.currentConfig.APIToken = token
+}
+
+// GetAPIToken returns the stored API token
+func (r *Repository) GetAPIToken() string {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		return ""
+	}
+	return r.currentConfig.APIToken
+}
+
+// UpdatePollInterval updates the stored polling interval
+func (r *Repository) UpdatePollInterval(newInterval int) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		r.currentConfig = &StoreData{}
+	}
+	r.currentConfig.PollInterval = newInterval
+}
+
+// SetConfig stores configuration and its ETag
+func (r *Repository) SetConfig(config *models.Configuration, etag string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		r.currentConfig = &StoreData{}
+	}
+	r.currentConfig.Config = config
+	r.currentConfig.ETag = etag
+}
+
+// GetConfig retrieves stored configuration and ETag
+func (r *Repository) GetConfig() (*models.Configuration, string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	if r.currentConfig == nil {
+		return nil, ""
+	}
+	return r.currentConfig.Config, r.currentConfig.ETag
 }

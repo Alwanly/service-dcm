@@ -11,8 +11,8 @@ type IControllerClient interface {
 	// Register registers the agent with the controller
 	Register(ctx context.Context, hostname, version, startTime string) (*models.RegistrationResponse, error)
 	// GetConfiguration fetches the configuration from the controller using the provided poll URL.
-	// If the server responds 304 Not Modified, the third return value will be true.
-	GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, bool, error)
+	// Returns: configuration, new ETag, optional poll interval (nil if not provided), notModified flag, error
+	GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, *int, bool, error)
 }
 
 // IWorkerClient defines the interface for communicating with the worker service
@@ -34,4 +34,14 @@ type IRepository interface {
 	SetPollInfo(pollURL string, pollInterval int) error
 	// GetPollInfo retrieves the poll URL and interval
 	GetPollInfo() (string, int, error)
+	// SetAPIToken stores the API token for authentication
+	SetAPIToken(token string)
+	// GetAPIToken retrieves the stored API token
+	GetAPIToken() string
+	// UpdatePollInterval updates the stored polling interval
+	UpdatePollInterval(newInterval int)
+	// SetConfig stores configuration and ETag
+	SetConfig(config *models.Configuration, etag string)
+	// GetConfig retrieves stored configuration and ETag
+	GetConfig() (*models.Configuration, string)
 }

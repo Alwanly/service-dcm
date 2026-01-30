@@ -86,20 +86,21 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 	c.currentConfig.AgentID = regResp.AgentID
 	c.currentConfig.PollURL = regResp.PollURL
 	c.currentConfig.PollInterval = regResp.PollIntervalSeconds
+	c.currentConfig.APIToken = regResp.APIToken
 
 	return &regResp, nil
 }
 
 // GetConfiguration fetches configuration from the controller or from a provided pollURL.
 // It supports conditional requests via If-None-Match and returns the new ETag when present.
-func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, bool, error) {
+func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, *int, bool, error) {
 	// determine URL to call
 
 	target := fmt.Sprintf("%s%s", c.baseURL, c.currentConfig.PollURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("failed to create get configuration request: %w", err)
+		return nil, "", nil, false, fmt.Errorf("failed to create get configuration request: %w", err)
 	}
 
 	if agentID != "" {
@@ -109,6 +110,17 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		req.Header.Set("If-None-Match", ifNoneMatch)
 	}
 
+	// bearer token auth if available
+	c.mutex.Lock()
+	token := ""
+	if c.currentConfig != nil {
+		token = c.currentConfig.APIToken
+	}
+	c.mutex.Unlock()
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
 	// basic auth if configured
 	if c.username != "" || c.password != "" {
 		req.SetBasicAuth(c.username, c.password)
@@ -116,22 +128,22 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("get configuration request failed: %w", err)
+		return nil, "", nil, false, fmt.Errorf("get configuration request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotModified {
-		return nil, "", true, nil
+		return nil, "", nil, true, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return nil, "", false, fmt.Errorf("get configuration returned status %d: %s", resp.StatusCode, string(b))
+		return nil, "", nil, false, fmt.Errorf("get configuration returned status %d: %s", resp.StatusCode, string(b))
 	}
 
 	var respBody dto.ConfigurationResponse
 	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return nil, "", false, fmt.Errorf("failed to decode configuration: %w", err)
+		return nil, "", nil, false, fmt.Errorf("failed to decode configuration: %w", err)
 	}
 	cfg := models.Configuration{
 		ID:         respBody.ID,
@@ -140,7 +152,7 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 	}
 	configDataBytes, err := json.Marshal(respBody.Config)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("failed to marshal configuration data: %w", err)
+		return nil, "", nil, false, fmt.Errorf("failed to marshal configuration data: %w", err)
 	}
 	cfg.ConfigData = string(configDataBytes)
 
@@ -154,5 +166,5 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		c.mutex.Unlock()
 	}
 
-	return &cfg, cfg.ETag, false, nil
+	return &cfg, cfg.ETag, respBody.PollIntervalSeconds, false, nil
 }
