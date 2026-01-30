@@ -26,12 +26,10 @@ install:
 
 .PHONY: run dev build bump lint format test tidy install
 
-swagger-generate:
-	swag init -g cmd/controller/main.go -o docs/controller
-	swag init -g cmd/worker/main.go -o docs/worker
+swagger-generate: swagger-controller swagger-worker
 
 swagger-controller:
-	swag init -g cmd/controller/main.go -o docs/controller
+	swag init -g cmd/controller/main.go -o docs/controller --exclude internal/server/worker
 
 swagger-worker:
-	swag init -g cmd/worker/main.go -o docs/worker
+	swag init -g cmd/worker/main.go -o docs/worker --exclude internal/server/controller

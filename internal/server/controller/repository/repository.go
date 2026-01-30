@@ -178,7 +178,16 @@ func (r *Repository) GetConfigETag(ctx context.Context) (string, error) {
 	var etag string
 	err := r.DB.WithContext(ctx).Raw("SELECT etag FROM configurations ORDER BY created_at DESC LIMIT 1").Scan(&etag).Error
 	if err == gorm.ErrRecordNotFound {
-		return "", nil
+		// create default configuration when none exists
+		defaultConfig := "{}"
+		etag = generateETag(defaultConfig)
+		if createErr := r.DB.WithContext(ctx).Create(&models.Configuration{
+			ETag:       etag,
+			ConfigData: defaultConfig,
+		}).Error; createErr != nil {
+			return "", createErr
+		}
+		return etag, nil
 	}
 	return etag, err
 }

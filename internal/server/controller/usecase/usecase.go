@@ -108,34 +108,33 @@ func (uc *UseCase) GetConfig(ctx context.Context, req *dto.GetConfigAgentRequest
 }
 
 // GetConfigForAgent returns configuration for authenticated agent with poll interval
-func (uc *UseCase) GetConfigForAgent(agentID string, etag string) wrapper.JSONResult {
+func (uc *UseCase) GetConfigForAgent(ctx context.Context, agentID string, etag string) wrapper.JSONResult {
 	// Look up agent to get poll interval
 	agent, err := uc.Repo.GetAgentByID(agentID)
 	if err != nil {
-		uc.Logger.Error("failed to get agent for config",
-			zap.String("agent_id", agentID),
-			zap.Error(err),
-		)
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, false), zap.Error(err))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to get agent", err)
 	}
 
-	// Check config changes
-	latestETag, configData, err := uc.Repo.GetConfigIfChanged(etag)
+	// Get current configuration
+	latestETag, err := uc.Repo.GetConfigETag(ctx)
 	if err != nil {
-		uc.Logger.Error("failed to get config",
-			zap.Error(err),
-			zap.String("agent_id", agentID),
-		)
-		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to get configuration", err)
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, false), zap.Error(err))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to get configuration ETag", err)
 	}
 
-	if latestETag == "" {
+	// If ETag matches, return 304 Not Modified
+	if latestETag == etag {
 		// Not modified
-		uc.Logger.Debug("configuration not modified",
-			zap.String("agent_id", agentID),
-			zap.String("etag", etag),
-		)
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
 		return wrapper.ResponseSuccess(http.StatusNotModified, nil)
+	}
+
+	// Get configuration data
+	configData, err := uc.Repo.GetConfig(ctx, latestETag)
+	if err != nil {
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, false), zap.Error(err))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to get configuration data", err)
 	}
 
 	// Determine poll interval (agent-specific or global default)
@@ -154,10 +153,9 @@ func (uc *UseCase) GetConfigForAgent(agentID string, etag string) wrapper.JSONRe
 		PollIntervalSeconds: pollInterval,
 	}
 
-	uc.Logger.Info("configuration returned",
-		zap.String("agent_id", agentID),
-		zap.String("agent_name", agent.AgentName),
-		zap.Int("poll_interval_seconds", *pollInterval),
+	logger.AddToContext(ctx,
+		zap.String(logger.FieldETag, latestETag),
+		zap.Bool(logger.FieldSuccess, true),
 	)
 
 	return wrapper.ResponseSuccess(http.StatusOK, response)

@@ -38,7 +38,7 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 	d.Fiber.Get("/health", h.health)
 
 	// Public registration endpoint (agents register without Bearer token)
-	d.Fiber.Post("/register", h.register)
+	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
 
 	// Admin-protected endpoint to set configuration
 	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
@@ -119,10 +119,12 @@ func (h *Handler) setConfig(c *fiber.Ctx) error {
 // @Tags         configuration
 // @Accept       json
 // @Produce      json
+// @Param        If-None-Match header string false "ETag for conditional requests"
+// @Param        agent_id header string true "Agent ID injected by authentication middleware"
+// @Param        Authorization header string true "Bearer token for agent authentication"
 // @Success      200 {object} dto.GetConfigAgentResponse "Current configuration data"
 // @Failure      500 {object} wrapper.JSONResult "Internal server error"
 // @Router       /config [get]
-// @Security     BasicAuth
 func (h *Handler) getConfig(c *fiber.Ctx) error {
 	// Enrich log context
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "get_config"))
@@ -138,7 +140,7 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 	etag := c.Get("If-None-Match")
 
 	// Get configuration for this agent
-	res := h.UseCase.GetConfigForAgent(agentID, etag)
+	res := h.UseCase.GetConfigForAgent(c.UserContext(), agentID, etag)
 
 	// Handle 304 Not Modified
 	if res.Code == fiber.StatusNotModified {

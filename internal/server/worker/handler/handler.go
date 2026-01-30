@@ -41,9 +41,8 @@ func NewHandler(d deps.App, timeout time.Duration) *Handler {
 // @Tags         configuration
 // @Accept       json
 // @Produce      json
-// @Param        request body dto.ReceiveConfigRequest true "Configuration data"
-// @Success      200 {object} wrapper.JSONResult "Configuration updated successfully"
-// @Failure      400 {object} map[string]string "Invalid request body or validation error"
+// @Success      200 {object} wrapper.JSONResult{data=dto.ReceiveConfigRequest} "Successfully applied configuration"
+// @Failure      400 {object} wrapper.JSONResult "Invalid request body or validation error"
 // @Router       /config [post]
 func (h *Handler) receiveConfig(c *fiber.Ctx) error {
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "receive_config"))
@@ -72,6 +71,7 @@ func (h *Handler) receiveConfig(c *fiber.Ctx) error {
 // @Produce      */*
 // @Param        body body string false "Request body to forward"
 // @Router       /hit [post]
+// @Success      200 {object} wrapper.JSONResult{data=dto.HitResponse} "Successfully proxied request"
 func (h *Handler) hit(c *fiber.Ctx) error {
 
 	res := h.UseCase.HitRequest(c.UserContext())
