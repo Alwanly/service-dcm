@@ -57,6 +57,17 @@ func (h *Handler) receiveConfig(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(errs)
 	}
 
+	// Idempotency check: if ETag matches current config, skip processing
+	current := h.UseCase.GetConfig()
+	if req.ETag != "" && current != nil && current.ETag == req.ETag {
+		logger.AddToContext(c.UserContext(), zap.String(logger.FieldETag, req.ETag))
+		h.Logger.Info("Configuration already applied (idempotent)", zap.String("etag", req.ETag), zap.Bool("skipped", true))
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Configuration already up-to-date",
+			"etag":    req.ETag,
+		})
+	}
+
 	res := h.UseCase.ReceiveConfig(c.UserContext(), req)
 	return c.Status(res.Code).JSON(res.Data)
 }

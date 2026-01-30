@@ -69,13 +69,11 @@ func main() {
 	db, err := database.NewSQLiteDB(cfg.DatabasePath)
 	if err != nil {
 		log.WithError(err).Fatal("failed to initialize database")
-		panic(err)
 	}
 	log.Info("database initialized", logger.String("path", cfg.DatabasePath))
 
 	if err := database.RunMigrations(db); err != nil {
 		log.WithError(err).Fatal("failed to migrate database")
-		panic(err)
 	}
 	log.Info("database migrations applied successfully")
 
@@ -105,12 +103,15 @@ func main() {
 		}
 		redisPub, err := pubsub.NewRedisPubSub(redisCfg, log)
 		if err != nil {
-			log.WithError(err).Error("failed to initialize Redis pub/sub, continuing without push notifications")
+			log.WithError(err).Error("Failed to initialize Redis pub/sub, continuing in poll-only mode",
+				logger.String("impact", "config_updates_via_polling_only"),
+				logger.String("mode", "poll-only"))
 		} else {
 			deps.Pub = redisPub
 			log.Info("Redis pub/sub initialized successfully",
 				logger.String("host", cfg.Redis.Host),
-				logger.Int("port", cfg.Redis.Port))
+				logger.Int("port", cfg.Redis.Port),
+				logger.String("mode", "hybrid_push_pull"))
 			defer redisPub.Close()
 		}
 	} else {

@@ -26,6 +26,8 @@ type UseCaseInterface interface {
 	ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequest) wrapper.JSONResult
 	HitRequest(ctx context.Context) wrapper.JSONResult
 	GetCurrentConfig() *models.ConfigData
+	// GetConfig returns the currently stored configuration including ETag
+	GetConfig() *dto.ReceiveConfigRequest
 }
 
 type UseCase struct {
@@ -169,6 +171,19 @@ func (uc *UseCase) GetCurrentConfig() *models.ConfigData {
 		return nil
 	}
 	return &data.Config
+}
+
+func (uc *UseCase) GetConfig() *dto.ReceiveConfigRequest {
+	data, err := uc.repo.GetCurrentConfig()
+	if err != nil || data == nil {
+		return nil
+	}
+
+	return &dto.ReceiveConfigRequest{
+		ID:         0,
+		ETag:       data.ETag,
+		ConfigData: data.Config,
+	}
 }
 
 func extractIPFromHTML(htmlData []byte) (string, error) {

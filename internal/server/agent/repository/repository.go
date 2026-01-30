@@ -262,6 +262,11 @@ func (r *Repository) RegisterConfigPolling(ctx context.Context, log *logger.Cano
 
 		log.Info("config fallback polling started", zap.Duration("interval", interval))
 
+		// Purpose tag for observability
+		log.Info("config fallback polling started",
+			zap.Duration("interval", interval),
+			zap.String("purpose", "safety_net_for_missed_push_notifications"))
+
 		client := &http.Client{Timeout: 15 * time.Second}
 
 		for {
@@ -407,7 +412,9 @@ func (r *Repository) RegisterHeartbeatPolling(ctx context.Context, log *logger.C
 	ticker := time.NewTicker(interval)
 
 	go func() {
-		log.Info("Heartbeat polling started", zap.Duration("interval", interval))
+		log.Info("Heartbeat polling started",
+			zap.Duration("interval", interval),
+			zap.String("purpose", "health_check_and_version_drift_detection"))
 		client := &http.Client{Timeout: 10 * time.Second}
 		for {
 			select {
