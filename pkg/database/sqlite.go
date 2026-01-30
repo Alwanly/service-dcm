@@ -29,6 +29,7 @@ func RunMigrations(db *gorm.DB) error {
 	models := []interface{}{
 		&models.Agent{},
 		&models.Configuration{},
+		&models.AgentConfig{},
 	}
 	if err := db.AutoMigrate(models...); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
