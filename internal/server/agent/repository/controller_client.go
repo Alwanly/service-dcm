@@ -121,11 +121,6 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	// basic auth if configured
-	if c.username != "" || c.password != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, "", nil, false, fmt.Errorf("get configuration request failed: %w", err)
