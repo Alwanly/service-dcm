@@ -15,7 +15,6 @@ import (
 
 const AgentIDContextKey = "agent_id"
 
-// AgentTokenAuth validates Bearer token and injects agent ID into context
 func AgentTokenAuth(db *gorm.DB, log *logger.CanonicalLogger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get(fiber.HeaderAuthorization)

@@ -10,15 +10,11 @@ import (
 
 // Config holds the configuration for exponential backoff retry logic.
 type Config struct {
-	// MaxRetries is the maximum number of retry attempts.
-	// Set to -1 for unlimited retries.
+	// MaxRetries is the maximum number of retry attempts. Set to -1 for unlimited retries.
 	MaxRetries int
 
-	// InitialBackoff is the duration to wait before the first retry.
 	InitialBackoff time.Duration
-
-	// MaxBackoff is the maximum duration to wait between retries.
-	MaxBackoff time.Duration
+	MaxBackoff     time.Duration
 
 	// Multiplier is the factor by which the backoff duration increases after each retry.
 	// Default is 2.0 for exponential backoff.
@@ -28,13 +24,8 @@ type Config struct {
 	Jitter bool
 }
 
-// Operation is a function that will be retried.
-// It should return an error if the operation failed and should be retried.
-// Return nil if the operation succeeded.
 type Operation func(ctx context.Context) error
 
-// WithExponentialBackoff executes the given operation with exponential backoff retry logic.
-// It returns an error if all retries are exhausted or if the context is canceled.
 func WithExponentialBackoff(ctx context.Context, cfg Config, op Operation) error {
 	var attempt int
 	var err error

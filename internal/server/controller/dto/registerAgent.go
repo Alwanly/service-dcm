@@ -1,12 +1,10 @@
 package dto
 
-// RegisterAgentRequest is the request body for agent registration
 type RegisterAgentRequest struct {
 	Hostname  string `json:"hostname" validate:"required"`
 	StartTime string `json:"start_time" validate:"required"`
 }
 
-// RegisterAgentResponse is the response for successful agent registration
 type RegisterAgentResponse struct {
 	AgentID             string `json:"agent_id"`              // UUID
 	AgentName           string `json:"agent_name"`            // Hostname

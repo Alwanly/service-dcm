@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Handler handles HTTP requests for the agent service
 type Handler struct {
 	useCase *usecase.UseCase
 	logger  *logger.CanonicalLogger
@@ -23,10 +22,7 @@ type Handler struct {
 	poller  poll.Poller
 }
 
-// NewHandler creates a new agent handler
 func NewHandler(d deps.App, config *config.AgentConfig) *Handler {
-
-	// create central repository and clients
 	// Pass in the pubsub subscriber (may be nil) so repository can start Redis listener if available.
 	repo := repository.NewRepository(config.ControllerURL, config.WorkerURL, "", "", d.Pub)
 	controllerRepo := repository.NewControllerClient(config, d.Logger)

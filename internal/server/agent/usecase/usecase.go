@@ -26,8 +26,6 @@ type UseCase struct {
 func NewUseCase(ctrl repository.IControllerClient, repo repository.IRepository, worker repository.IWorkerClient, cfg *config.AgentConfig, log *logger.CanonicalLogger) *UseCase {
 	return &UseCase{controller: ctrl, repo: repo, worker: worker, cfg: cfg, logger: log}
 }
-
-// StartBackgroundServices initializes background listeners and polling (best-effort)
 func (uc *UseCase) StartBackgroundServices(ctx context.Context, heartbeatInterval, fallbackInterval time.Duration) error {
 	// Start Redis listener for push notifications
 	if err := uc.repo.StartRedisListener(ctx, uc.logger); err != nil {
@@ -52,7 +50,6 @@ func (uc *UseCase) StartBackgroundServices(ctx context.Context, heartbeatInterva
 	return nil
 }
 
-// RegisterWithController registers the agent and stores agentID into the repository.
 func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTime string) (*models.RegistrationResponse, error) {
 	var lastErr error
 	var savedResp *models.RegistrationResponse
@@ -104,8 +101,6 @@ func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTi
 	return &models.RegistrationResponse{AgentID: agentID, PollIntervalSeconds: poll, APIToken: token}, nil
 }
 
-// GetConfigure is a FetchFunc implementation that polls for configuration updates.
-// It wraps FetchConfiguration and uses the provided logger for debugging.
 func (uc *UseCase) GetConfigure(ctx context.Context, log *logger.CanonicalLogger) error {
 	log.Debug("starting configuration fetch")
 
@@ -128,7 +123,6 @@ func (uc *UseCase) GetConfigure(ctx context.Context, log *logger.CanonicalLogger
 	return nil
 }
 
-// FetchConfiguration fetches configuration using ETag conditional requests.
 func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuration, *int, bool, error) {
 	curCfg, _ := uc.repo.GetCurrentConfig()
 	var curETag string

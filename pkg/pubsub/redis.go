@@ -8,7 +8,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// RedisConfig holds Redis connection configuration
 type RedisConfig struct {
 	Host     string
 	Port     int
@@ -16,7 +15,6 @@ type RedisConfig struct {
 	DB       int
 }
 
-// redisPubSub implements PubSub interface using Redis
 type redisPubSub struct {
 	client    *redis.Client
 	pubsub    *redis.PubSub
@@ -25,7 +23,6 @@ type redisPubSub struct {
 	cancel    context.CancelFunc
 }
 
-// NewRedisPubSub creates a new Redis pub/sub client
 func NewRedisPubSub(cfg RedisConfig, log *logger.CanonicalLogger) (PubSub, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	client := redis.NewClient(&redis.Options{

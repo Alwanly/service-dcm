@@ -23,7 +23,6 @@ type workerClient struct {
 	logger     *logger.CanonicalLogger
 }
 
-// NewWorkerClient creates a new worker client repository
 func NewWorkerClient(cfg *config.AgentConfig, log *logger.CanonicalLogger) IWorkerClient {
 	return &workerClient{
 		httpClient: &http.Client{Timeout: cfg.RequestTimeout},
@@ -32,7 +31,6 @@ func NewWorkerClient(cfg *config.AgentConfig, log *logger.CanonicalLogger) IWork
 	}
 }
 
-// SendConfiguration sends the configuration to the worker
 func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Configuration) error {
 	url := fmt.Sprintf("%s/config", w.baseURL)
 
@@ -61,7 +59,6 @@ func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Con
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	// propagate correlation id from context if present
 	if corr := logger.GetCorrelationID(ctx); corr != "" {
 		req.Header.Set("X-Correlation-ID", corr)
 	}
@@ -80,9 +77,7 @@ func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Con
 	return nil
 }
 
-// SendConfigurationWithRetry sends configuration to worker with exponential backoff retry
 func (w *workerClient) SendConfigurationWithRetry(ctx context.Context, config *models.Configuration, maxRetries int) error {
-	// Use closure to track attempts for logging
 	attempt := 0
 	retryCfg := retry.Config{
 		MaxRetries:     maxRetries,

@@ -40,9 +40,7 @@ func (r *Repository) RegisterAgent(ctx context.Context, data *models.Agent) erro
 	return result.Error
 }
 
-// CreateAgent creates a new agent with UUID and API token
 func (r *Repository) CreateAgent(agentName string, pollIntervalSeconds *int) (*models.AgentConfig, error) {
-	// Generate UUID v7 for agent ID
 	agentID := uuid.Must(uuid.NewV7()).String()
 
 	// Generate secure random API token (32 bytes = 64 hex chars)
@@ -65,7 +63,6 @@ func (r *Repository) CreateAgent(agentName string, pollIntervalSeconds *int) (*m
 	return agent, nil
 }
 
-// GetAgentByID retrieves an agent by UUID
 func (r *Repository) GetAgentByID(agentID string) (*models.AgentConfig, error) {
 	var agent models.AgentConfig
 	if err := r.DB.Where("id = ?", agentID).First(&agent).Error; err != nil {
@@ -77,7 +74,6 @@ func (r *Repository) GetAgentByID(agentID string) (*models.AgentConfig, error) {
 	return &agent, nil
 }
 
-// GetAgentByToken retrieves an agent by API token
 func (r *Repository) GetAgentByToken(apiToken string) (*models.AgentConfig, error) {
 	var agent models.AgentConfig
 	if err := r.DB.Where("api_token = ?", apiToken).First(&agent).Error; err != nil {
@@ -89,7 +85,6 @@ func (r *Repository) GetAgentByToken(apiToken string) (*models.AgentConfig, erro
 	return &agent, nil
 }
 
-// UpdateAgentPollInterval updates the polling interval for an agent
 func (r *Repository) UpdateAgentPollInterval(agentID string, intervalSeconds *int) error {
 	result := r.DB.Model(&models.AgentConfig{}).
 		Where("id = ?", agentID).
@@ -106,7 +101,6 @@ func (r *Repository) UpdateAgentPollInterval(agentID string, intervalSeconds *in
 	return nil
 }
 
-// RotateAgentToken generates a new API token for an agent
 func (r *Repository) RotateAgentToken(agentID string) (string, error) {
 	newToken, err := generateSecureToken(32)
 	if err != nil {
@@ -128,7 +122,6 @@ func (r *Repository) RotateAgentToken(agentID string) (string, error) {
 	return newToken, nil
 }
 
-// ListAgents retrieves all registered agents
 func (r *Repository) ListAgents() ([]models.AgentPublic, error) {
 	var agents []models.AgentConfig
 	if err := r.DB.Order("created_at DESC").Find(&agents).Error; err != nil {
@@ -142,7 +135,6 @@ func (r *Repository) ListAgents() ([]models.AgentPublic, error) {
 	return public, nil
 }
 
-// DeleteAgent removes an agent by ID
 func (r *Repository) DeleteAgent(agentID string) error {
 	result := r.DB.Delete(&models.AgentConfig{}, "id = ?", agentID)
 	if result.Error != nil {
@@ -156,7 +148,6 @@ func (r *Repository) DeleteAgent(agentID string) error {
 	return nil
 }
 
-// generateSecureToken creates a cryptographically secure random token
 func generateSecureToken(byteLength int) (string, error) {
 	bytes := make([]byte, byteLength)
 	if _, err := rand.Read(bytes); err != nil {

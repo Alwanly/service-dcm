@@ -6,48 +6,18 @@ import (
 )
 
 type IBasicAuthService interface {
-	// BasicAuth authenticates the user using basic auth.
-	//
-	// Parameters:
-	//   - username: username
-	//   - password: password
-	//
-	// Returns:
-	//   - bool: true if the user is authenticated, false otherwise
 	Validate(username, password string) bool
-
-	// BasicAuth authenticates the user using basic auth.
-	//
-	// Parameters:
-	//   - username: username
-	//   - password: password
-	//
-	// Returns:
-	//   - bool: true if the user is authenticated, false otherwise
 	ValidateAdmin(username, password string) bool
-
-	// DecodeBasicAuth decodes the basic auth header.
-	//
-	// Parameters:
-	//   - auth: basic auth header
-	//
-	// Returns:
-	//   - string: username
-	//   - string: password
 	DecodeFromHeader(auth string) (string, string)
 }
 
 type BasicAuthTConfig struct {
-	// Username
 	Username string
 
-	// Password
 	Password string
 
-	// AdminUsername
 	AdminUsername string
 
-	// AdminPassword
 	AdminPassword string
 }
 

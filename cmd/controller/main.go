@@ -38,7 +38,6 @@ import (
 )
 
 func main() {
-	// Initialize logger
 	log, err := logger.NewLoggerFromEnv("controller")
 	if err != nil {
 		panic(err)
@@ -47,7 +46,6 @@ func main() {
 
 	log.Info("starting controller service")
 
-	// Load configuration
 	cfg, err := config.LoadControllerConfig()
 	if err != nil {
 		log.WithError(err).Fatal("failed to load configuration")
@@ -68,7 +66,6 @@ func main() {
 	mid := middleware.NewAuthMiddleware(auth)
 	log.Info("authentication initialized")
 
-	// Initialize database
 	db, err := database.NewSQLiteDB(cfg.DatabasePath)
 	if err != nil {
 		log.WithError(err).Fatal("failed to initialize database")
@@ -76,26 +73,22 @@ func main() {
 	}
 	log.Info("database initialized", logger.String("path", cfg.DatabasePath))
 
-	// Migrate database schema
 	if err := database.RunMigrations(db); err != nil {
 		log.WithError(err).Fatal("failed to migrate database")
 		panic(err)
 	}
 	log.Info("database migrations applied successfully")
 
-	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:               "Controller Service",
 		DisableStartupMessage: true,
 		ErrorHandler:          middleware.ErrorHandler(log),
 	})
 
-	// Add middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())
 	app.Use(middleware.CanonicalLoggerMiddleware(log))
 
-	// Initialize dependencies
 	deps := deps.App{
 		Fiber:      app,
 		Database:   db,
@@ -103,7 +96,6 @@ func main() {
 		Middleware: mid,
 	}
 
-	// Initialize Redis pub/sub (if Redis config present)
 	if cfg.Redis != nil {
 		redisCfg := pubsub.RedisConfig{
 			Host:     cfg.Redis.Host,
@@ -125,16 +117,13 @@ func main() {
 		log.Info("no Redis configuration provided; skipping pub/sub initialization")
 	}
 
-	// Register handlers
 	handler.NewHandler(deps, cfg)
 
-	// Swagger documentation route (accessible without authentication)
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	gErr, gCtx := errgroup.WithContext(ctx)
 
-	// Start server in goroutine
 	gErr.Go(func() error {
 		log.Info("controller service is running", logger.String("address", cfg.ServerAddr))
 		if err := app.Listen(cfg.ServerAddr); err != nil {
@@ -144,7 +133,6 @@ func main() {
 		return nil
 	})
 
-	// Shutdown goroutine
 	gErr.Go(func() error {
 		<-gCtx.Done()
 
@@ -166,7 +154,6 @@ func main() {
 		return nil
 	})
 
-	// Listen for OS signals
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)

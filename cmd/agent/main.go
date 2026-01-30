@@ -40,25 +40,20 @@ func main() {
 		logger.String("agent_addr", cfg.AgentAddr),
 	)
 
-	// initialize poller
 	poller := poll.NewPoller(log)
 
-	// Create Fiber app
 	app := fiber.New(fiber.Config{DisableStartupMessage: true, ErrorHandler: middleware.ErrorHandler(log)})
 
-	// Add middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())
 	app.Use(middleware.CanonicalLoggerMiddleware(log))
 
-	// Initialize dependencies
 	deps := deps.App{
 		Fiber:  app,
 		Logger: log,
 		Poller: poller,
 	}
 
-	// Initialize Redis subscriber (if configured)
 	if cfg.Redis != nil {
 		redisCfg := pubsub.RedisConfig{
 			Host:     cfg.Redis.Host,
@@ -75,37 +70,29 @@ func main() {
 		}
 	}
 
-	// Initialize handler (creates usecase/repo/clients)
 	h := handler.NewHandler(deps, cfg)
 
-	// perform registration before starting services (blocking with retries inside usecase)
 	regResp, err := h.RegisterAgent(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("agent registration failed")
-		// ensure process exits
 		os.Exit(1)
 	}
 
-	// register configuration poller using controller-provided interval
 	interval := 50
 	if regResp != nil && regResp.PollIntervalSeconds > 0 {
 		interval = regResp.PollIntervalSeconds
 	}
 	deps.Poller.RegisterFetchFunc("get-configure", h.GetConfigure, poll.PollerConfig{PollIntervalSeconds: interval})
 
-	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start background services (Redis listener + polling)
 	if err := h.StartBackgroundServices(ctx); err != nil {
 		log.WithError(err).Error("failed to start background services")
 	}
 
-	// Use errgroup for managing concurrent goroutines
 	g, gCtx := errgroup.WithContext(ctx)
 
-	// Start HTTP server
 	g.Go(func() error {
 		log.Info("starting HTTP server", logger.String("address", cfg.AgentAddr))
 		if err := app.Listen(cfg.AgentAddr); err != nil {
@@ -114,7 +101,6 @@ func main() {
 		return nil
 	})
 
-	// Start poller
 	g.Go(func() error {
 		log.Info("starting poller")
 		if err := poller.Start(gCtx); err != nil {
@@ -123,7 +109,6 @@ func main() {
 		return nil
 	})
 
-	// Handle graceful shutdown
 	g.Go(func() error {
 		<-gCtx.Done()
 
@@ -140,7 +125,6 @@ func main() {
 		return nil
 	})
 
-	// listen for OS signals
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)

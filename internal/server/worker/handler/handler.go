@@ -26,8 +26,6 @@ func NewHandler(d deps.App, timeout time.Duration) *Handler {
 		UseCase: uc,
 		Logger:  d.Logger,
 	}
-
-	// register routes on fiber app
 	d.Fiber.Get("/health", h.health)
 	d.Fiber.Post("/config", h.receiveConfig)
 	d.Fiber.Post("/hit", h.hit)

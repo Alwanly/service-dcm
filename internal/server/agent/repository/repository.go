@@ -44,7 +44,6 @@ type Repository struct {
 	circuitMutex     sync.Mutex
 }
 
-// NewRepository creates a new repository instance
 func NewRepository(controllerURL string, workerURL string, agentID string, apiToken string, subscriber pubsub.Subscriber) IRepository {
 	return &Repository{
 		store:         &StoreData{},
@@ -58,7 +57,6 @@ func NewRepository(controllerURL string, workerURL string, agentID string, apiTo
 	}
 }
 
-// SetAPIToken stores the API token for future requests
 func (r *Repository) SetAPIToken(token string) {
 	r.storeMutex.Lock()
 	defer r.storeMutex.Unlock()
@@ -69,7 +67,6 @@ func (r *Repository) SetAPIToken(token string) {
 	r.apiToken = token
 }
 
-// GetAPIToken returns the stored API token
 func (r *Repository) GetAPIToken() string {
 	r.storeMutex.RLock()
 	defer r.storeMutex.RUnlock()
@@ -79,7 +76,6 @@ func (r *Repository) GetAPIToken() string {
 	return r.store.APIToken
 }
 
-// SetConfig stores configuration and its ETag
 func (r *Repository) SetConfig(config *models.Configuration, etag string) {
 	r.storeMutex.Lock()
 	defer r.storeMutex.Unlock()
@@ -90,7 +86,6 @@ func (r *Repository) SetConfig(config *models.Configuration, etag string) {
 	r.store.ETag = etag
 }
 
-// GetConfig retrieves stored configuration and ETag
 func (r *Repository) GetConfig() (*models.Configuration, string) {
 	r.storeMutex.RLock()
 	defer r.storeMutex.RUnlock()
@@ -100,7 +95,6 @@ func (r *Repository) GetConfig() (*models.Configuration, string) {
 	return r.store.Config, r.store.ETag
 }
 
-// GetPollInfo retrieves the poll URL and interval
 func (r *Repository) GetPollInfo() (string, int, error) {
 	r.storeMutex.RLock()
 	defer r.storeMutex.RUnlock()
@@ -110,7 +104,6 @@ func (r *Repository) GetPollInfo() (string, int, error) {
 	return r.store.PollURL, r.store.PollInterval, nil
 }
 
-// SetPollInfo sets the poll URL and interval
 func (r *Repository) SetPollInfo(pollURL string, pollInterval int) error {
 	r.storeMutex.Lock()
 	defer r.storeMutex.Unlock()
@@ -122,7 +115,6 @@ func (r *Repository) SetPollInfo(pollURL string, pollInterval int) error {
 	return nil
 }
 
-// UpdatePollInterval updates the stored polling interval
 func (r *Repository) UpdatePollInterval(newInterval int) {
 	r.storeMutex.Lock()
 	defer r.storeMutex.Unlock()
@@ -132,7 +124,6 @@ func (r *Repository) UpdatePollInterval(newInterval int) {
 	r.store.PollInterval = newInterval
 }
 
-// handleConfigUpdate processes configuration updates from either push or poll
 func (r *Repository) handleConfigUpdate(ctx context.Context, log *logger.CanonicalLogger, etag string, correlationID string) error {
 	updateStart := time.Now()
 
@@ -259,7 +250,6 @@ func (r *Repository) RegisterConfigPolling(ctx context.Context, log *logger.Cano
 
 	// Start a fallback poller that performs conditional GETs against the controller
 	go func() {
-		// determine initial interval
 		interval := 60 * time.Second
 		r.storeMutex.RLock()
 		if r.store != nil && r.store.PollInterval > 0 {
@@ -405,7 +395,6 @@ func (r *Repository) RegisterConfigPolling(ctx context.Context, log *logger.Cano
 	}()
 }
 
-// RegisterHeartbeatPolling starts periodic heartbeat to controller
 func (r *Repository) RegisterHeartbeatPolling(ctx context.Context, log *logger.CanonicalLogger, interval time.Duration) {
 	if r == nil {
 		return
@@ -474,7 +463,6 @@ func (r *Repository) RegisterHeartbeatPolling(ctx context.Context, log *logger.C
 	}()
 }
 
-// SetAgentID sets the agent ID
 func (r *Repository) SetAgentID(agentID string) error {
 	r.storeMutex.Lock()
 	defer r.storeMutex.Unlock()
@@ -486,7 +474,6 @@ func (r *Repository) SetAgentID(agentID string) error {
 	return nil
 }
 
-// GetAgentID returns the stored agent ID
 func (r *Repository) GetAgentID() (string, error) {
 	r.storeMutex.RLock()
 	defer r.storeMutex.RUnlock()
@@ -496,7 +483,6 @@ func (r *Repository) GetAgentID() (string, error) {
 	return r.store.AgentID, nil
 }
 
-// GetCurrentConfig retrieves the current worker configuration
 func (r *Repository) GetCurrentConfig() (*models.Configuration, error) {
 	r.storeMutex.RLock()
 	defer r.storeMutex.RUnlock()
@@ -506,7 +492,6 @@ func (r *Repository) GetCurrentConfig() (*models.Configuration, error) {
 	return r.store.Config, nil
 }
 
-// UpdateConfig updates the worker configuration
 func (r *Repository) UpdateConfig(config *models.Configuration) error {
 	if r == nil {
 		return nil
@@ -521,7 +506,6 @@ func (r *Repository) UpdateConfig(config *models.Configuration) error {
 	return nil
 }
 
-// StartRedisListener starts listening for config update notifications
 func (r *Repository) StartRedisListener(ctx context.Context, log *logger.CanonicalLogger) error {
 	if r.pubsub == nil {
 		log.Info("Redis subscriber not configured, skipping push notifications")
@@ -538,7 +522,6 @@ const (
 	circuitBreakerCooldown = 5 * time.Minute
 )
 
-// shouldAttemptRedisReconnect checks if we should try reconnecting to Redis
 func (r *Repository) shouldAttemptRedisReconnect() bool {
 	r.circuitMutex.Lock()
 	defer r.circuitMutex.Unlock()
@@ -554,7 +537,6 @@ func (r *Repository) shouldAttemptRedisReconnect() bool {
 	return false
 }
 
-// recordRedisFailure increments failure counter and opens circuit if needed
 func (r *Repository) recordRedisFailure() {
 	r.circuitMutex.Lock()
 	defer r.circuitMutex.Unlock()
@@ -565,7 +547,6 @@ func (r *Repository) recordRedisFailure() {
 	}
 }
 
-// recordRedisSuccess resets circuit breaker
 func (r *Repository) recordRedisSuccess() {
 	r.circuitMutex.Lock()
 	defer r.circuitMutex.Unlock()

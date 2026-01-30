@@ -23,8 +23,6 @@ type Handler struct {
 
 func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 
-	// repository.NewRepository now accepts an optional pubsub.Publisher.
-	// Use the publisher provided in dependencies (may be nil if not configured).
 	repo := repository.NewRepository(d.Database, d.Pub)
 
 	uc := usecase.NewUseCase(usecase.UseCase{
@@ -79,7 +77,6 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 // @Router       /register [post]
 // @Security     BasicAuth
 func (h *Handler) register(c *fiber.Ctx) error {
-	// Enrich log context
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "register_agent"))
 
 	req := new(dto.RegisterAgentRequest)
@@ -111,7 +108,6 @@ func (h *Handler) register(c *fiber.Ctx) error {
 // @Router       /config [post]
 // @Security     BasicAuth
 func (h *Handler) setConfig(c *fiber.Ctx) error {
-	// Enrich log context
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "set_config"))
 
 	req := new(dto.SetConfigAgentRequest)
@@ -143,10 +139,8 @@ func (h *Handler) setConfig(c *fiber.Ctx) error {
 // @Failure      500 {object} wrapper.JSONResult "Internal server error"
 // @Router       /config [get]
 func (h *Handler) getConfig(c *fiber.Ctx) error {
-	// Enrich log context
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "get_config"))
 
-	// Extract agent ID from context (set by middleware)
 	agentID, ok := c.Locals(middleware.AgentIDContextKey).(string)
 	if !ok || agentID == "" {
 		h.Logger.Error("agent_id not found in context")

@@ -22,20 +22,17 @@ import (
 	"go.uber.org/zap"
 )
 
-// UseCaseInterface defines the business logic interface for worker operations
 type UseCaseInterface interface {
 	ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequest) wrapper.JSONResult
 	HitRequest(ctx context.Context) wrapper.JSONResult
 	GetCurrentConfig() *models.ConfigData
 }
 
-// UseCase implements the business logic for worker operations
 type UseCase struct {
 	repo       repository.IRepository
 	httpClient *http.Client
 }
 
-// NewUseCase creates a new UseCase instance
 func NewUseCase(repo repository.IRepository, timeout time.Duration) UseCaseInterface {
 	return &UseCase{
 		repo: repo,
@@ -45,7 +42,6 @@ func NewUseCase(repo repository.IRepository, timeout time.Duration) UseCaseInter
 	}
 }
 
-// ReceiveConfig handles configuration updates from the agent
 func (uc *UseCase) ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequest) wrapper.JSONResult {
 
 	configData, err := json.Marshal(req.ConfigData)
@@ -80,7 +76,6 @@ func (uc *UseCase) ReceiveConfig(ctx context.Context, req *dto.ReceiveConfigRequ
 	return wrapper.ResponseSuccess(http.StatusOK, nil)
 }
 
-// ProxyRequest forwards a request to the configured target URL
 func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 	// Get current configuration
 	data, err := uc.repo.GetCurrentConfig()
@@ -100,7 +95,6 @@ func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to create request", nil)
 	}
-	// Set proxy if configured
 	client := uc.httpClient
 	if data.Config.Proxy != "" {
 		proxyURL, err := parseProxyURL(data.Config.Proxy)
@@ -169,7 +163,6 @@ func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 	return wrapper.ResponseSuccess(http.StatusOK, response)
 }
 
-// GetCurrentConfig returns the current configuration data (if any)
 func (uc *UseCase) GetCurrentConfig() *models.ConfigData {
 	data, err := uc.repo.GetCurrentConfig()
 	if err != nil || data == nil {

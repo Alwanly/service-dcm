@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-// Legacy Agent model (kept for existing controller logic)
 type Agent struct {
 	AgentID           string     `gorm:"primaryKey;column:agent_id" json:"agent_id"`
 	Status            string     `gorm:"column:status" json:"status"`
@@ -17,7 +16,6 @@ func (Agent) TableName() string {
 	return "agents"
 }
 
-// RegistrationResponse represents the response when an agent successfully registers with the controller
 type RegistrationResponse struct {
 	AgentID             string `json:"agent_id"`
 	PollURL             string `json:"poll_url,omitempty"`
@@ -25,7 +23,6 @@ type RegistrationResponse struct {
 	APIToken            string `json:"api_token,omitempty"`
 }
 
-// New AgentConfig model for per-agent authentication and configuration
 type AgentConfig struct {
 	ID                  string    `gorm:"column:id;primaryKey" json:"id"`
 	AgentName           string    `gorm:"column:agent_name;not null" json:"agent_name"`
@@ -35,12 +32,10 @@ type AgentConfig struct {
 	UpdatedAt           time.Time `gorm:"column:updated_at;not null;autoUpdateTime" json:"updated_at"`
 }
 
-// TableName specifies the table name for GORM
 func (AgentConfig) TableName() string {
 	return "agent_configs"
 }
 
-// AgentPublic is the public-facing agent model without sensitive fields
 type AgentPublic struct {
 	ID                  string    `json:"id"`
 	AgentName           string    `json:"agent_name"`
@@ -49,7 +44,6 @@ type AgentPublic struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
-// ToPublic converts AgentConfig to AgentPublic (excludes APIToken)
 func (a *AgentConfig) ToPublic() AgentPublic {
 	return AgentPublic{
 		ID:                  a.ID,

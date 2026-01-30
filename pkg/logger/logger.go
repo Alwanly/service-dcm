@@ -6,12 +6,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// CanonicalLogger is a small wrapper around zap.Logger for this project
 type CanonicalLogger struct {
 	l *zap.Logger
 }
 
-// NewLoggerFromEnv creates a new logger. For simplicity, use zap.NewProduction.
 // NewLoggerFromEnv creates a new logger based on the LOG_FORMAT environment variable.
 // Supported LOG_FORMAT values:
 //   - "console" or "development": Human-readable console output with colored levels, ISO8601 timestamps

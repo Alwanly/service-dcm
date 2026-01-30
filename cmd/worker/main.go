@@ -33,7 +33,6 @@ import (
 )
 
 func main() {
-	// Initialize logger
 	log, err := logger.NewLoggerFromEnv("worker")
 	if err != nil {
 		panic(err)
@@ -42,7 +41,6 @@ func main() {
 
 	log.Info("Starting Worker Service...")
 
-	// Load configuration
 	cfg, err := config.LoadWorkerConfig()
 	if err != nil {
 		log.Fatal("Failed to load configuration")
@@ -53,28 +51,23 @@ func main() {
 		logger.Duration("request_timeout", cfg.RequestTimeout),
 	)
 
-	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:               "Worker Service",
 		DisableStartupMessage: true,
 		ErrorHandler:          middleware.ErrorHandler(log),
 	})
 
-	// Setup middleware
 	app.Use(recover.New())
 	app.Use(requestid.New())
 	app.Use(middleware.CanonicalLoggerMiddleware(log))
 
-	// Create dependency container
 	dependencies := deps.App{
 		Fiber:  app,
 		Logger: log,
 	}
 
-	// Initialize handler (creates full dependency chain)
 	handler.NewHandler(dependencies, cfg.RequestTimeout)
 
-	// Swagger documentation route
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	log.Info("Worker Service configured",
@@ -82,7 +75,6 @@ func main() {
 		logger.Duration("request_timeout", cfg.RequestTimeout),
 	)
 
-	// Start server in goroutine
 	go func() {
 		addr := cfg.ServerAddr
 		log.Info("Worker Service starting", logger.String("address", addr))
@@ -91,14 +83,12 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Info("Shutting down Worker Service...")
 
-	// Gracefully shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

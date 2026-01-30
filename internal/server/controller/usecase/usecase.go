@@ -31,10 +31,7 @@ func NewUseCase(uc UseCase) *UseCase {
 }
 
 func (uc *UseCase) RegisterAgent(ctx context.Context, req *dto.RegisterAgentRequest) wrapper.JSONResult {
-	// Determine default poll interval
 	defaultInterval := int(uc.Config.PollInterval.Seconds())
-
-	// Create agent with UUID and API token
 	agent, err := uc.Repo.CreateAgent(req.Hostname, &defaultInterval)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))

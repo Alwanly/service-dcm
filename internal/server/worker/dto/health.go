@@ -2,7 +2,6 @@ package dto
 
 import "time"
 
-// HealthCheckResponse represents the response from the health check endpoint
 type HealthCheckResponse struct {
 	Status      string            `json:"status" example:"healthy"`
 	Configured  bool              `json:"configured" example:"true"`

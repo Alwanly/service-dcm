@@ -26,7 +26,6 @@ type controllerClient struct {
 	mutex         sync.Mutex
 }
 
-// NewControllerClient creates a new controller client repository
 func NewControllerClient(cfg *config.AgentConfig, log *logger.CanonicalLogger) IControllerClient {
 	return &controllerClient{
 		httpClient: &http.Client{Timeout: cfg.RequestTimeout},
@@ -92,11 +91,7 @@ func (c *controllerClient) Register(ctx context.Context, hostname, version, star
 	return &regResp, nil
 }
 
-// GetConfiguration fetches configuration from the controller or from a provided pollURL.
-// It supports conditional requests via If-None-Match and returns the new ETag when present.
 func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollURL, ifNoneMatch string) (*models.Configuration, string, *int, bool, error) {
-	// determine URL to call
-
 	target := fmt.Sprintf("%s%s", c.baseURL, c.currentConfig.PollURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
@@ -111,7 +106,6 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		req.Header.Set("If-None-Match", ifNoneMatch)
 	}
 
-	// bearer token auth if available
 	c.mutex.Lock()
 	token := ""
 	if c.currentConfig != nil {
@@ -152,7 +146,6 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 	}
 	cfg.ConfigData = string(configDataBytes)
 
-	// Optionally store agentID in local store if provided
 	if agentID != "" {
 		c.mutex.Lock()
 		if c.currentConfig == nil {
@@ -165,7 +158,6 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 	return &cfg, cfg.ETag, respBody.PollIntervalSeconds, false, nil
 }
 
-// SendHeartbeat sends health heartbeat to the controller
 func (c *controllerClient) SendHeartbeat(ctx context.Context, logger *logger.CanonicalLogger) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
