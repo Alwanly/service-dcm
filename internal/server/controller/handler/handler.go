@@ -9,6 +9,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
 	"github.com/Alwanly/service-distribute-management/pkg/validator"
+	"github.com/Alwanly/service-distribute-management/pkg/wrapper"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -31,7 +32,10 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 	})
 
 	h := &Handler{
-		UseCase: uc,
+		Logger:     d.Logger,
+		UseCase:    uc,
+		Config:     cfg,
+		Middleware: d.Middleware,
 	}
 
 	// Health check endpoint (no auth required)
@@ -40,11 +44,19 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 	// Public registration endpoint (agents register without Bearer token)
 	d.Fiber.Post("/register", d.Middleware.BasicAuth(), h.register)
 
-	// Admin-protected endpoint to set configuration
+	// Admin-protected endpoints
 	d.Fiber.Post("/config", d.Middleware.BasicAuthAdmin(), h.setConfig)
 
 	// Agent-authenticated endpoint for fetching configuration
 	d.Fiber.Get("/config", middleware.AgentTokenAuth(d.Database, d.Logger), h.getConfig)
+
+	// Management endpoints for agents (admin only)
+	adminRoutes := d.Fiber.Group("/agents", d.Middleware.BasicAuthAdmin())
+	adminRoutes.Put(":id/interval", h.updateAgentInterval)
+	adminRoutes.Post(":id/token/rotate", h.rotateAgentToken)
+	adminRoutes.Get("", h.listAgents)
+	adminRoutes.Get(":id", h.getAgent)
+	adminRoutes.Delete(":id", h.deleteAgent)
 
 	return h
 }
@@ -154,6 +166,55 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 		}
 	}
 
+	return c.Status(res.Code).JSON(res.Data)
+}
+
+// updateAgentInterval handles updating an agent's polling interval
+func (h *Handler) updateAgentInterval(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	req := new(dto.UpdatePollIntervalRequest)
+	if err := c.BodyParser(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if err := h.UseCase.UpdateAgentPollInterval(agentID, req.PollIntervalSeconds); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	res := wrapper.ResponseSuccess(fiber.StatusOK, "poll interval updated")
+	return c.Status(res.Code).JSON(res.Data)
+}
+
+// rotateAgentToken handles rotating an agent's API token
+func (h *Handler) rotateAgentToken(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	res := h.UseCase.RotateAgentToken(c.UserContext(), agentID)
+	return c.Status(res.Code).JSON(res.Data)
+}
+
+// getAgent handles retrieving a specific agent
+func (h *Handler) getAgent(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	res := h.UseCase.GetAgent(c.UserContext(), agentID)
+	return c.Status(res.Code).JSON(res.Data)
+}
+
+// listAgents handles listing all agents
+func (h *Handler) listAgents(c *fiber.Ctx) error {
+	res := h.UseCase.ListAgents(c.UserContext())
+	return c.Status(res.Code).JSON(res.Data)
+}
+
+// deleteAgent handles deleting an agent
+func (h *Handler) deleteAgent(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	if err := h.UseCase.DeleteAgent(c.UserContext(), agentID); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	res := wrapper.ResponseSuccess(fiber.StatusOK, "agent deleted")
 	return c.Status(res.Code).JSON(res.Data)
 }
 

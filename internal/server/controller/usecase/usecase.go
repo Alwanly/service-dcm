@@ -160,3 +160,66 @@ func (uc *UseCase) GetConfigForAgent(ctx context.Context, agentID string, etag s
 
 	return wrapper.ResponseSuccess(http.StatusOK, response)
 }
+
+// UpdateAgentPollInterval updates the polling interval for a specific agent
+func (uc *UseCase) UpdateAgentPollInterval(agentID string, intervalSeconds *int) error {
+	if err := uc.Repo.UpdateAgentPollInterval(agentID, intervalSeconds); err != nil {
+		uc.Logger.Error("failed to update agent poll interval", zap.Error(err), zap.String("agent_id", agentID))
+		return err
+	}
+	uc.Logger.Info("agent poll interval updated", zap.String("agent_id", agentID))
+	return nil
+}
+
+// RotateAgentToken generates a new API token for an agent and returns it
+func (uc *UseCase) RotateAgentToken(ctx context.Context, agentID string) wrapper.JSONResult {
+	newToken, err := uc.Repo.RotateAgentToken(agentID)
+	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to rotate token", err)
+	}
+
+	response := dto.RotateTokenResponse{
+		AgentID:  agentID,
+		APIToken: newToken,
+		Message:  "token rotated",
+	}
+	logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
+	return wrapper.ResponseSuccess(http.StatusOK, response)
+}
+
+// GetAgent retrieves details for a specific agent
+func (uc *UseCase) GetAgent(ctx context.Context, agentID string) wrapper.JSONResult {
+	agent, err := uc.Repo.GetAgentByID(agentID)
+	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to get agent", err)
+	}
+	logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
+	return wrapper.ResponseSuccess(http.StatusOK, agent.ToPublic())
+}
+
+// ListAgents returns all registered agents
+func (uc *UseCase) ListAgents(ctx context.Context) wrapper.JSONResult {
+	agents, err := uc.Repo.ListAgents()
+	if err != nil {
+		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to list agents", err)
+	}
+	response := dto.ListAgentsResponse{
+		Agents: agents,
+		Total:  len(agents),
+	}
+	logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
+	return wrapper.ResponseSuccess(http.StatusOK, response)
+}
+
+// DeleteAgent removes an agent by ID
+func (uc *UseCase) DeleteAgent(ctx context.Context, agentID string) error {
+	if err := uc.Repo.DeleteAgent(agentID); err != nil {
+		uc.Logger.Error("failed to delete agent", zap.Error(err), zap.String("agent_id", agentID))
+		return err
+	}
+	uc.Logger.Info("agent deleted", zap.String("agent_id", agentID))
+	return nil
+}
