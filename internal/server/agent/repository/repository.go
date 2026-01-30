@@ -294,7 +294,7 @@ func (r *Repository) RegisterConfigPolling(ctx context.Context, log *logger.Cano
 				target := fmt.Sprintf("%s/config", r.controllerURL)
 				if pollURL != "" {
 					// if controller provided an explicit poll URL, use it
-					target = pollURL
+					target = fmt.Sprintf("%s%s", r.controllerURL, pollURL)
 				}
 
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
@@ -482,6 +482,7 @@ func (r *Repository) SetAgentID(agentID string) error {
 		r.store = &StoreData{}
 	}
 	r.store.AgentID = agentID
+	r.agentID = agentID
 	return nil
 }
 
