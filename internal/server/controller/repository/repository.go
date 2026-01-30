@@ -11,14 +11,17 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"github.com/Alwanly/service-distribute-management/pkg/pubsub"
 )
 
 type Repository struct {
-	DB *gorm.DB
+	DB  *gorm.DB
+	Pub pubsub.Publisher
 }
 
-func NewRepository(db *gorm.DB) *Repository {
-	return &Repository{DB: db}
+func NewRepository(db *gorm.DB, publisher pubsub.Publisher) *Repository {
+	return &Repository{DB: db, Pub: publisher}
 }
 
 type IRepository interface {
@@ -27,6 +30,9 @@ type IRepository interface {
 	GetConfigETag(ctx context.Context) (string, error)
 	GetConfig(ctx context.Context, config string) (models.ConfigData, error)
 	GetConfigIfChanged(currentETag string) (string, models.ConfigData, error)
+	PublishConfigUpdate(agentID string, etag string, correlationID string) error
+	UpdateAgentHeartbeat(agentID string, configVersion string) (*models.Agent, error)
+	GetLatestConfigVersionForAgent(agentID string) (string, error)
 }
 
 func (r *Repository) RegisterAgent(ctx context.Context, data *models.Agent) error {
@@ -242,4 +248,63 @@ func (r *Repository) GetConfigIfChanged(currentETag string) (string, models.Conf
 	}
 
 	return etag, configData, nil
+}
+
+// PublishConfigUpdate publishes a configuration change notification to Redis (if configured)
+func (r *Repository) PublishConfigUpdate(agentID string, etag string, correlationID string) error {
+	if r.Pub == nil {
+		// Redis not configured; nothing to do
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	notification := map[string]string{
+		"agent_id":       agentID,
+		"etag":           etag,
+		"correlation_id": correlationID,
+	}
+
+	payload, err := json.Marshal(notification)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config update notification: %w", err)
+	}
+
+	channel := "config-updates"
+	if err := r.Pub.Publish(ctx, channel, string(payload)); err != nil {
+		return fmt.Errorf("failed to publish config update: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateAgentHeartbeat updates the agent's last heartbeat timestamp and last config version
+func (r *Repository) UpdateAgentHeartbeat(agentID string, configVersion string) (*models.Agent, error) {
+	var agent models.Agent
+	now := time.Now().UTC()
+
+	result := r.DB.Model(&models.Agent{}).Where("agent_id = ?", agentID).Updates(map[string]interface{}{
+		"last_heartbeat":      &now,
+		"last_config_version": configVersion,
+		"updated_at":          time.Now().UTC(),
+	})
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to update agent heartbeat: %w", result.Error)
+	}
+
+	if err := r.DB.Where("agent_id = ?", agentID).First(&agent).Error; err != nil {
+		return nil, fmt.Errorf("failed to retrieve agent after heartbeat update: %w", err)
+	}
+	return &agent, nil
+}
+
+// GetLatestConfigVersionForAgent returns the latest configuration ETag (global) for now
+func (r *Repository) GetLatestConfigVersionForAgent(agentID string) (string, error) {
+	// For now return the global latest configuration ETag
+	etag, err := r.GetConfigETag(context.Background())
+	if err != nil {
+		return "", err
+	}
+	return etag, nil
 }

@@ -59,6 +59,16 @@ func (r *redisPubSub) Publish(ctx context.Context, channel string, message strin
 	return nil
 }
 
+// Ping checks if Redis connection is healthy
+func (r *redisPubSub) Ping(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+
+// IsHealthy returns true if Redis connection is active
+func (r *redisPubSub) IsHealthy(ctx context.Context) bool {
+	return r.Ping(ctx) == nil
+}
+
 // Subscribe subscribes to Redis channels
 func (r *redisPubSub) Subscribe(ctx context.Context, channels ...string) (<-chan Message, error) {
 	if len(channels) == 0 {

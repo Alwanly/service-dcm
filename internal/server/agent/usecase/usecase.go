@@ -3,6 +3,9 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
@@ -17,10 +20,36 @@ type UseCase struct {
 	repo       repository.IRepository
 	worker     repository.IWorkerClient
 	cfg        *config.AgentConfig
+	logger     *logger.CanonicalLogger
 }
 
-func NewUseCase(ctrl repository.IControllerClient, repo repository.IRepository, worker repository.IWorkerClient, cfg *config.AgentConfig) *UseCase {
-	return &UseCase{controller: ctrl, repo: repo, worker: worker, cfg: cfg}
+func NewUseCase(ctrl repository.IControllerClient, repo repository.IRepository, worker repository.IWorkerClient, cfg *config.AgentConfig, log *logger.CanonicalLogger) *UseCase {
+	return &UseCase{controller: ctrl, repo: repo, worker: worker, cfg: cfg, logger: log}
+}
+
+// StartBackgroundServices initializes background listeners and polling (best-effort)
+func (uc *UseCase) StartBackgroundServices(ctx context.Context, heartbeatInterval, fallbackInterval time.Duration) error {
+	// Start Redis listener for push notifications
+	if err := uc.repo.StartRedisListener(ctx, uc.logger); err != nil {
+		uc.logger.WithError(err).Error("Failed to start Redis listener")
+		// Continue operating in poll-only mode
+	}
+
+	// Start heartbeat polling if enabled
+	if uc.cfg != nil {
+		if uc.cfg.Heartbeat.Enabled && heartbeatInterval > 0 {
+			uc.repo.RegisterHeartbeatPolling(ctx, uc.logger, heartbeatInterval)
+		}
+		if uc.cfg.FallbackPoll.Enabled && fallbackInterval > 0 {
+			// Register fallback polling (uses same underlying mechanism)
+			uc.repo.RegisterConfigPolling(ctx, uc.logger)
+		}
+	} else {
+		// Fallback: register config polling
+		uc.repo.RegisterConfigPolling(ctx, uc.logger)
+	}
+
+	return nil
 }
 
 // RegisterWithController registers the agent and stores agentID into the repository.
@@ -130,8 +159,26 @@ func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuratio
 		if err := uc.repo.UpdateConfig(cfg); err != nil {
 			return nil, nil, false, fmt.Errorf("update config repository: %w", err)
 		}
-		if err := uc.worker.SendConfiguration(ctx, cfg); err != nil {
-			return nil, nil, false, fmt.Errorf("send configuration to worker: %w", err)
+		// Send configuration to worker with retry wrapper if supported
+
+		// Ensure correlation ID is present in context for downstream worker calls
+		corr := logger.GetCorrelationID(ctx)
+		if corr == "" {
+			corr = uuid.Must(uuid.NewV7()).String()
+			ctx = logger.WithCorrelationID(ctx, corr)
+		}
+		uc.logger.Info("forwarding configuration to worker", zap.String("correlation_id", corr), zap.String("etag", cfg.ETag))
+
+		if wc, ok := uc.worker.(interface {
+			SendConfigurationWithRetry(context.Context, *models.Configuration, int) error
+		}); ok {
+			if err := wc.SendConfigurationWithRetry(ctx, cfg, 5); err != nil {
+				return nil, nil, false, fmt.Errorf("send configuration to worker (with retry): %w", err)
+			}
+		} else {
+			if err := uc.worker.SendConfiguration(ctx, cfg); err != nil {
+				return nil, nil, false, fmt.Errorf("send configuration to worker: %w", err)
+			}
 		}
 	}
 

@@ -3,6 +3,7 @@ module github.com/Alwanly/service-distribute-management
 go 1.25.0
 
 require (
+	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/go-playground/validator/v10 v10.24.0
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/gofiber/swagger v1.1.1
@@ -17,7 +18,6 @@ require (
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

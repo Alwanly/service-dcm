@@ -13,6 +13,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
 	"github.com/Alwanly/service-distribute-management/pkg/poll"
+	"github.com/Alwanly/service-distribute-management/pkg/pubsub"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
@@ -57,6 +58,23 @@ func main() {
 		Poller: poller,
 	}
 
+	// Initialize Redis subscriber (if configured)
+	if cfg.Redis != nil {
+		redisCfg := pubsub.RedisConfig{
+			Host:     cfg.Redis.Host,
+			Port:     cfg.Redis.Port,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		}
+		if redisPub, err := pubsub.NewRedisPubSub(redisCfg, log); err != nil {
+			log.WithError(err).Error("failed to initialize Redis subscriber, continuing with poll-only mode")
+		} else {
+			deps.Pub = redisPub
+			defer redisPub.Close()
+			log.Info("Redis subscriber initialized", logger.String("host", cfg.Redis.Host))
+		}
+	}
+
 	// Initialize handler (creates usecase/repo/clients)
 	h := handler.NewHandler(deps, cfg)
 
@@ -78,6 +96,11 @@ func main() {
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start background services (Redis listener + polling)
+	if err := h.StartBackgroundServices(ctx); err != nil {
+		log.WithError(err).Error("failed to start background services")
+	}
 
 	// Use errgroup for managing concurrent goroutines
 	g, gCtx := errgroup.WithContext(ctx)

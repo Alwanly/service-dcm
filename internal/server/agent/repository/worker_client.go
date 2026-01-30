@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent/dto"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	"github.com/Alwanly/service-distribute-management/pkg/retry"
+	"go.uber.org/zap"
 )
 
 type workerClient struct {
@@ -58,6 +61,10 @@ func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Con
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	// propagate correlation id from context if present
+	if corr := logger.GetCorrelationID(ctx); corr != "" {
+		req.Header.Set("X-Correlation-ID", corr)
+	}
 
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
@@ -71,4 +78,31 @@ func (w *workerClient) SendConfiguration(ctx context.Context, config *models.Con
 	}
 
 	return nil
+}
+
+// SendConfigurationWithRetry sends configuration to worker with exponential backoff retry
+func (w *workerClient) SendConfigurationWithRetry(ctx context.Context, config *models.Configuration, maxRetries int) error {
+	// Use closure to track attempts for logging
+	attempt := 0
+	retryCfg := retry.Config{
+		MaxRetries:     maxRetries,
+		InitialBackoff: 1 * time.Second,
+		MaxBackoff:     30 * time.Second,
+		Multiplier:     2.0,
+		Jitter:         true,
+	}
+
+	op := func(ctx context.Context) error {
+		attempt++
+		w.logger.Info("attempting to send configuration to worker", zap.Int("attempt", attempt), zap.String("etag", config.ETag))
+		err := w.SendConfiguration(ctx, config)
+		if err != nil {
+			w.logger.WithError(err).Error("failed to send configuration to worker", zap.Int("attempt", attempt), zap.String("etag", config.ETag))
+		} else {
+			w.logger.Info("configuration sent to worker", zap.Int("attempt", attempt), zap.String("etag", config.ETag))
+		}
+		return err
+	}
+
+	return retry.WithExponentialBackoff(ctx, retryCfg, op)
 }

@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/dto"
@@ -56,6 +59,10 @@ func (uc *UseCase) RegisterAgent(ctx context.Context, req *dto.RegisterAgentRequ
 }
 
 func (uc *UseCase) UpdateConfig(ctx context.Context, req *dto.SetConfigAgentRequest) wrapper.JSONResult {
+	correlationID := uuid.New().String()
+
+	logger.AddToContext(ctx, zap.String("correlation_id", correlationID))
+
 	config, err := json.Marshal(req)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
@@ -66,6 +73,17 @@ func (uc *UseCase) UpdateConfig(ctx context.Context, req *dto.SetConfigAgentRequ
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "Failed to update config", err)
+	}
+
+	// Publish notification to Redis (best-effort) with correlation ID
+	if etag, gerr := uc.Repo.GetConfigETag(ctx); gerr == nil {
+		if perr := uc.Repo.PublishConfigUpdate("", etag, correlationID); perr != nil {
+			uc.Logger.WithError(perr).Error("failed to publish config update", zap.String("correlation_id", correlationID))
+		} else {
+			uc.Logger.Info("config update published", zap.String("correlation_id", correlationID), zap.String("etag", etag))
+		}
+	} else {
+		uc.Logger.WithError(gerr).Error("failed to get config ETag after update", zap.String("correlation_id", correlationID))
 	}
 
 	logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
@@ -197,6 +215,32 @@ func (uc *UseCase) GetAgent(ctx context.Context, agentID string) wrapper.JSONRes
 	}
 	logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true))
 	return wrapper.ResponseSuccess(http.StatusOK, agent.ToPublic())
+}
+
+// HandleHeartbeat processes an agent heartbeat and returns latest config version info
+func (uc *UseCase) HandleHeartbeat(agentID string, req *dto.HeartbeatRequest) (*dto.HeartbeatResponse, error) {
+	// Update heartbeat timestamp in DB
+	agent, err := uc.Repo.UpdateAgentHeartbeat(agentID, req.ConfigVersion)
+	if err != nil {
+		uc.Logger.Error("failed to update agent heartbeat", zap.Error(err), zap.String("agent_id", agentID))
+		return nil, err
+	}
+
+	// Get latest config version for agent
+	latest, err := uc.Repo.GetLatestConfigVersionForAgent(agentID)
+	if err != nil {
+		uc.Logger.Error("failed to get latest config version", zap.Error(err), zap.String("agent_id", agentID))
+		return nil, err
+	}
+
+	resp := &dto.HeartbeatResponse{
+		LatestConfigVersion: latest,
+		ReceivedAt:          time.Now().UTC(),
+	}
+
+	uc.Logger.Info("heartbeat processed", zap.String("agent_id", agentID), zap.String("latest_config", latest))
+	_ = agent
+	return resp, nil
 }
 
 // ListAgents returns all registered agents

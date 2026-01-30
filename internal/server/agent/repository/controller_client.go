@@ -13,6 +13,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/internal/models"
 	"github.com/Alwanly/service-distribute-management/internal/server/agent/dto"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
+	"go.uber.org/zap"
 )
 
 type controllerClient struct {
@@ -162,4 +163,52 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 	}
 
 	return &cfg, cfg.ETag, respBody.PollIntervalSeconds, false, nil
+}
+
+// SendHeartbeat sends health heartbeat to the controller
+func (c *controllerClient) SendHeartbeat(ctx context.Context, logger *logger.CanonicalLogger) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.currentConfig == nil {
+		// nothing to send
+		return nil
+	}
+
+	payload := map[string]string{
+		"config_version": c.currentConfig.ETag,
+		"status":         "healthy",
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal heartbeat payload: %w", err)
+	}
+
+	target := fmt.Sprintf("%s/heartbeat", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create heartbeat request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.currentConfig.AgentID != "" {
+		req.Header.Set("X-Agent-ID", c.currentConfig.AgentID)
+	}
+	if c.currentConfig.APIToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.currentConfig.APIToken)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("heartbeat request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("heartbeat returned status %d: %s", resp.StatusCode, string(b))
+	}
+
+	logger.Debug("heartbeat sent successfully", zap.String("agent_id", c.currentConfig.AgentID), zap.String("config_version", c.currentConfig.ETag))
+	return nil
 }

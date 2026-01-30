@@ -27,11 +27,12 @@ type Handler struct {
 func NewHandler(d deps.App, config *config.AgentConfig) *Handler {
 
 	// create central repository and clients
-	repo := repository.NewRepository()
+	// Pass in the pubsub subscriber (may be nil) so repository can start Redis listener if available.
+	repo := repository.NewRepository(config.ControllerURL, config.WorkerURL, "", "", d.Pub)
 	controllerRepo := repository.NewControllerClient(config, d.Logger)
 	workerClient := repository.NewWorkerClient(config, d.Logger)
 
-	uc := usecase.NewUseCase(controllerRepo, repo, workerClient, config)
+	uc := usecase.NewUseCase(controllerRepo, repo, workerClient, config, d.Logger)
 	h := &Handler{
 		useCase: uc,
 		logger:  d.Logger,
@@ -47,6 +48,13 @@ func NewHandler(d deps.App, config *config.AgentConfig) *Handler {
 func (h *Handler) RegisterAgent(ctx context.Context) (*models.RegistrationResponse, error) {
 	startTime := time.Now().UTC().Format(time.RFC3339)
 	return h.useCase.RegisterWithController(ctx, h.cfg.Hostname, startTime)
+}
+
+// StartBackgroundServices starts background listeners and pollers for the agent
+func (h *Handler) StartBackgroundServices(ctx context.Context) error {
+	hbInterval := h.cfg.Heartbeat.Interval
+	fbInterval := h.cfg.FallbackPoll.Interval
+	return h.useCase.StartBackgroundServices(ctx, hbInterval, fbInterval)
 }
 
 // GetConfigure is a poller fetch function that fetches configuration from the controller

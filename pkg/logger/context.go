@@ -14,6 +14,10 @@ const (
 	logContextKey contextKey = "log_context"
 )
 
+const (
+	correlationKey contextKey = "correlation_id"
+)
+
 // Field name constants for consistency
 const (
 	FieldRequestID     = "request_id"
@@ -101,4 +105,20 @@ func AddToContext(ctx context.Context, fields ...zap.Field) {
 	if lc != nil {
 		lc.AddFields(fields...)
 	}
+}
+
+// WithCorrelationID stores a correlation id string into context
+func WithCorrelationID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, correlationKey, id)
+}
+
+// GetCorrelationID retrieves the correlation id from context if present
+func GetCorrelationID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v, ok := ctx.Value(correlationKey).(string); ok {
+		return v
+	}
+	return ""
 }

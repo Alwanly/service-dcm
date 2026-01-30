@@ -33,6 +33,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/middleware"
+	"github.com/Alwanly/service-distribute-management/pkg/pubsub"
 	swagger "github.com/gofiber/swagger"
 )
 
@@ -100,6 +101,28 @@ func main() {
 		Database:   db,
 		Logger:     log,
 		Middleware: mid,
+	}
+
+	// Initialize Redis pub/sub (if Redis config present)
+	if cfg.Redis != nil {
+		redisCfg := pubsub.RedisConfig{
+			Host:     cfg.Redis.Host,
+			Port:     cfg.Redis.Port,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		}
+		redisPub, err := pubsub.NewRedisPubSub(redisCfg, log)
+		if err != nil {
+			log.WithError(err).Error("failed to initialize Redis pub/sub, continuing without push notifications")
+		} else {
+			deps.Pub = redisPub
+			log.Info("Redis pub/sub initialized successfully",
+				logger.String("host", cfg.Redis.Host),
+				logger.Int("port", cfg.Redis.Port))
+			defer redisPub.Close()
+		}
+	} else {
+		log.Info("no Redis configuration provided; skipping pub/sub initialization")
 	}
 
 	// Register handlers

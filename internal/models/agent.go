@@ -4,11 +4,13 @@ import "time"
 
 // Legacy Agent model (kept for existing controller logic)
 type Agent struct {
-	AgentID   string    `gorm:"primaryKey;column:agent_id" json:"agent_id"`
-	Status    string    `gorm:"column:status" json:"status"`
-	LastSeen  time.Time `gorm:"column:last_seen" json:"last_seen"`
-	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
+	AgentID           string     `gorm:"primaryKey;column:agent_id" json:"agent_id"`
+	Status            string     `gorm:"column:status" json:"status"`
+	LastSeen          time.Time  `gorm:"column:last_seen" json:"last_seen"`
+	LastHeartbeat     *time.Time `gorm:"index" json:"last_heartbeat"`
+	LastConfigVersion string     `gorm:"column:last_config_version" json:"last_config_version"`
+	CreatedAt         time.Time  `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time  `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }
 
 func (Agent) TableName() string {

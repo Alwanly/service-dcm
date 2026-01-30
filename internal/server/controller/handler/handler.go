@@ -23,7 +23,9 @@ type Handler struct {
 
 func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 
-	repo := repository.NewRepository(d.Database)
+	// repository.NewRepository now accepts an optional pubsub.Publisher.
+	// Use the publisher provided in dependencies (may be nil if not configured).
+	repo := repository.NewRepository(d.Database, d.Pub)
 
 	uc := usecase.NewUseCase(usecase.UseCase{
 		Repo:   repo,
@@ -49,6 +51,9 @@ func NewHandler(d deps.App, cfg *config.ControllerConfig) *Handler {
 
 	// Agent-authenticated endpoint for fetching configuration
 	d.Fiber.Get("/config", middleware.AgentTokenAuth(d.Database, d.Logger), h.getConfig)
+
+	// Agent-authenticated endpoint for sending heartbeat
+	d.Fiber.Post("/heartbeat", middleware.AgentTokenAuth(d.Database, d.Logger), h.heartbeat)
 
 	// Management endpoints for agents (admin only)
 	adminRoutes := d.Fiber.Group("/agents", d.Middleware.BasicAuthAdmin())
@@ -230,4 +235,48 @@ func (h *Handler) health(c *fiber.Ctx) error {
 	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "health_check"))
 
 	return c.JSON(fiber.Map{"status": "healthy"})
+}
+
+// heartbeat godoc
+// @Summary      Agent heartbeat
+// @Description  Receive periodic heartbeat from agent (authenticated)
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.HeartbeatRequest true "Heartbeat payload"
+// @Param        Authorization header string true "Bearer token for agent authentication"
+// @Success      200 {object} wrapper.JSONResult "Heartbeat processed"
+// @Failure      400 {object} wrapper.JSONResult "Invalid request body"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
+// @Router       /heartbeat [post]
+// @Security     ApiKeyAuth
+func (h *Handler) heartbeat(c *fiber.Ctx) error {
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "agent_heartbeat"))
+
+	// Extract agent ID from auth middleware
+	agentID, ok := c.Locals(middleware.AgentIDContextKey).(string)
+	if !ok || agentID == "" {
+		h.Logger.Error("agent_id not found in context for heartbeat")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "authentication context error"})
+	}
+
+	req := new(dto.HeartbeatRequest)
+	if err := c.BodyParser(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if err := validator.ValidateStruct(req); err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	resp, err := h.UseCase.HandleHeartbeat(agentID, req)
+	if err != nil {
+		logger.AddToContext(c.UserContext(), zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to process heartbeat"})
+	}
+
+	res := wrapper.ResponseSuccess(fiber.StatusOK, resp)
+	return c.Status(res.Code).JSON(res.Data)
 }

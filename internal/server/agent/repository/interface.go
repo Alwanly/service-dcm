@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/Alwanly/service-distribute-management/internal/models"
+	"github.com/Alwanly/service-distribute-management/pkg/logger"
 )
 
 // IControllerClient defines the interface for communicating with the controller service
@@ -19,6 +21,8 @@ type IControllerClient interface {
 type IWorkerClient interface {
 	// SendConfiguration sends the configuration to the worker
 	SendConfiguration(ctx context.Context, config *models.Configuration) error
+	// SendConfigurationWithRetry sends the configuration to the worker with retry/backoff
+	SendConfigurationWithRetry(ctx context.Context, config *models.Configuration, maxRetries int) error
 }
 
 type IRepository interface {
@@ -44,4 +48,10 @@ type IRepository interface {
 	SetConfig(config *models.Configuration, etag string)
 	// GetConfig retrieves stored configuration and ETag
 	GetConfig() (*models.Configuration, string)
+	// StartRedisListener starts a background Redis subscription listener
+	StartRedisListener(ctx context.Context, logger *logger.CanonicalLogger) error
+	// RegisterConfigPolling registers fallback polling mechanism for configuration
+	RegisterConfigPolling(ctx context.Context, logger *logger.CanonicalLogger)
+	// RegisterHeartbeatPolling starts periodic heartbeat to controller
+	RegisterHeartbeatPolling(ctx context.Context, logger *logger.CanonicalLogger, interval time.Duration)
 }

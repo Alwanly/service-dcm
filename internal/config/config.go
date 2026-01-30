@@ -31,6 +31,8 @@ type AgentConfig struct {
 	AgentPassword  string
 	AgentAddr      string
 	Redis          *RedisConfig
+	Heartbeat      HeartbeatConfig
+	FallbackPoll   FallbackPollConfig
 	// Registration retry configuration
 	RegistrationMaxRetries        int
 	RegistrationInitialBackoff    time.Duration
@@ -46,6 +48,16 @@ type RedisConfig struct {
 	Port     int
 	Password string
 	DB       int
+}
+
+type HeartbeatConfig struct {
+	Enabled  bool
+	Interval time.Duration
+}
+
+type FallbackPollConfig struct {
+	Enabled  bool
+	Interval time.Duration
 }
 
 // LoadControllerConfig reads controller config from environment or returns defaults
@@ -147,6 +159,40 @@ func LoadAgentConfig() (*AgentConfig, error) {
 	}
 
 	cfg.Redis = LoadRedisConfig()
+
+	// Heartbeat defaults
+	hbEnabled := true
+	if v := os.Getenv("AGENT_HEARTBEAT_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			hbEnabled = b
+		}
+	}
+	hbInterval := 30 * time.Second
+	if v := os.Getenv("AGENT_HEARTBEAT_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			hbInterval = d
+		} else if i, err := strconv.Atoi(v); err == nil {
+			hbInterval = time.Duration(i) * time.Second
+		}
+	}
+	cfg.Heartbeat = HeartbeatConfig{Enabled: hbEnabled, Interval: hbInterval}
+
+	// Fallback poll defaults
+	fbEnabled := true
+	if v := os.Getenv("AGENT_FALLBACK_POLL_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			fbEnabled = b
+		}
+	}
+	fbInterval := 60 * time.Second
+	if v := os.Getenv("AGENT_FALLBACK_POLL_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			fbInterval = d
+		} else if i, err := strconv.Atoi(v); err == nil {
+			fbInterval = time.Duration(i) * time.Second
+		}
+	}
+	cfg.FallbackPoll = FallbackPollConfig{Enabled: fbEnabled, Interval: fbInterval}
 
 	if cfg.Hostname == "" {
 		if hn, err := os.Hostname(); err == nil {
