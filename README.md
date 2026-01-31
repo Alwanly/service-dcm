@@ -424,6 +424,8 @@ graph TB
     UC_Worker --> HTTPClient_W
     HTTPClient_W -->|Proxy Request| Target
 ```
+![image](docs\images\architecture-diagram-2026-01-31-131736.png)
+
 
 ### Configuration Flow
 
@@ -449,6 +451,7 @@ sequenceDiagram
         Controller-->>Agent: 200 OK
     end
 ```
+![image](docs\images\sequence-agent-resgitration-diagram-2026-01-31-131544.png)
 
 #### Configuration Distribution Sequence
 
@@ -487,27 +490,7 @@ sequenceDiagram
         Worker-->>Agent: 304 Not Modified
     end
 ```
-
-### Authentication Flow
-
-```mermaid
-graph LR
-    subgraph "Initial Registration"
-        A1[Agent] -->|Basic Auth: AGENT_USER/PASS| C1[Controller]
-        C1 -->|Generate UUID Token| A1
-    end
-    
-    subgraph "Authenticated Requests"
-        A2[Agent] -->|Bearer Token| C2[Controller]
-        C2 -->|Validate Token| DB[(Database)]
-        DB -->|Token Valid| C2
-    end
-    
-    subgraph "Admin Operations"
-        Admin -->|Basic Auth: ADMIN_USER/PASS| C3[Controller]
-        C3 -->|Full Access| Admin
-    end
-```
+![image](docs\images\sequence-diagram-2026-01-31-131323.png)
 
 ### Polling and Pub/Sub Mechanism
 
@@ -1109,9 +1092,6 @@ The generated files are located in:
 | [README.md](README.md) | This file - Project overview and quick start |
 | [DOCKER.md](docs/DOCKER.md) | Docker deployment guide |
 | [ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment variables reference |
-| [PERFORMANCE.md](docs/PERFORMANCE.md) | Performance tuning and scaling |
-| [SECURITY.md](docs/SECURITY.md) | Security best practices |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment architecture examples |
 
 ---
 

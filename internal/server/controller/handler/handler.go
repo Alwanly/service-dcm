@@ -168,6 +168,20 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// updateAgentInterval godoc
+// @Summary      Update agent poll interval
+// @Description  Update the polling interval for a specific agent (admin only)
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Agent ID"
+// @Param        request body dto.UpdatePollIntervalRequest true "Poll interval update"
+// @Success      200 {object} wrapper.JSONResult "Poll interval updated successfully"
+// @Failure      400 {object} wrapper.JSONResult "Invalid request body"
+// @Failure      404 {object} wrapper.JSONResult "Agent not found"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
+// @Router       /agents/{id}/interval [put]
+// @Security     BasicAuth
 // updateAgentInterval handles updating an agent's polling interval
 func (h *Handler) updateAgentInterval(c *fiber.Ctx) error {
 	agentID := c.Params("id")
@@ -186,6 +200,18 @@ func (h *Handler) updateAgentInterval(c *fiber.Ctx) error {
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// rotateAgentToken godoc
+// @Summary      Rotate agent API token
+// @Description  Rotate and return a new API token for the specified agent (admin only)
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Agent ID"
+// @Success      200 {object} dto.RotateTokenResponse "New token generated"
+// @Failure      404 {object} wrapper.JSONResult "Agent not found"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
+// @Router       /agents/{id}/token/rotate [post]
+// @Security     BasicAuth
 // rotateAgentToken handles rotating an agent's API token
 func (h *Handler) rotateAgentToken(c *fiber.Ctx) error {
 	agentID := c.Params("id")
@@ -193,6 +219,18 @@ func (h *Handler) rotateAgentToken(c *fiber.Ctx) error {
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// getAgent godoc
+// @Summary      Get agent details
+// @Description  Retrieve details for a specific agent (admin only)
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Agent ID"
+// @Success      200 {object} wrapper.JSONResult "Agent details returned"
+// @Failure      404 {object} wrapper.JSONResult "Agent not found"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
+// @Router       /agents/{id} [get]
+// @Security     BasicAuth
 // getAgent handles retrieving a specific agent
 func (h *Handler) getAgent(c *fiber.Ctx) error {
 	agentID := c.Params("id")
@@ -200,12 +238,34 @@ func (h *Handler) getAgent(c *fiber.Ctx) error {
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// listAgents godoc
+// @Summary      List agents
+// @Description  List all registered agents (admin only)
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} dto.ListAgentsResponse "List of agents"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
+// @Router       /agents [get]
+// @Security     BasicAuth
 // listAgents handles listing all agents
 func (h *Handler) listAgents(c *fiber.Ctx) error {
 	res := h.UseCase.ListAgents(c.UserContext())
 	return c.Status(res.Code).JSON(res.Data)
 }
 
+// deleteAgent godoc
+// @Summary      Delete agent
+// @Description  Delete the specified agent (admin only)
+// @Tags         agents
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Agent ID"
+// @Success      200 {object} wrapper.JSONResult "Agent deleted successfully"
+// @Failure      404 {object} wrapper.JSONResult "Agent not found"
+// @Failure      500 {object} wrapper.JSONResult "Internal server error"
+// @Router       /agents/{id} [delete]
+// @Security     BasicAuth
 // deleteAgent handles deleting an agent
 func (h *Handler) deleteAgent(c *fiber.Ctx) error {
 	agentID := c.Params("id")
