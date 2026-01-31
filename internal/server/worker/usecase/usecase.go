@@ -150,11 +150,33 @@ func (uc *UseCase) HitRequest(ctx context.Context) wrapper.JSONResult {
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to read response body", nil)
 	}
 
-	// Parse HTML to extract IP address from class "ip-address"
-	respData, err := extractIPFromHTML(respBody)
-	if err != nil {
-		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
-		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to parse HTML response", nil)
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	var respData interface{}
+
+	isHTML := strings.Contains(contentType, "html") || (contentType == "" && len(respBody) > 0 && respBody[0] == '<')
+	if isHTML {
+		if data.Config.URL == "https://ip.me" {
+			respData, err = extractIPFromHTML(respBody)
+			if err != nil {
+				logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+				return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to parse HTML response", nil)
+			}
+		} else {
+			respData, err = extractContentFromHTML(respBody, "body")
+			if err != nil {
+				logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
+				return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to parse HTML response", nil)
+			}
+		}
+	} else {
+		// Treat as JSON if Content-Type indicates JSON or body looks like JSON
+		if strings.Contains(contentType, "json") || json.Valid(respBody) || (len(respBody) > 0 && (respBody[0] == '{' || respBody[0] == '[')) {
+			// return raw JSON string (trimmed)
+			respData = strings.TrimSpace(string(respBody))
+		} else {
+			// Fallback: return body as trimmed string
+			respData = strings.TrimSpace(string(respBody))
+		}
 	}
 
 	response := &dto.HitResponse{
@@ -220,4 +242,18 @@ func parseProxyURL(proxy string) (*url.URL, error) {
 	}
 
 	return url.Parse(proxy)
+}
+
+func extractContentFromHTML(htmlData []byte, selector string) (string, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(htmlData))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse HTML: %w", err)
+	}
+
+	element := doc.Find(selector).First()
+	if element.Length() == 0 {
+		return "", fmt.Errorf("element with selector '%s' not found in HTML", selector)
+	}
+
+	return strings.TrimSpace(element.Text()), nil
 }
