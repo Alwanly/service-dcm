@@ -94,6 +94,21 @@ func (uc *UseCase) RegisterWithController(ctx context.Context, hostname, startTi
 	agentID, _ := uc.repo.GetAgentID()
 	_, poll, _ := uc.repo.GetPollInfo()
 	token := uc.repo.GetAPIToken()
+
+	// get config if provided in registration response
+	if savedResp.APIToken != "" && savedResp.PollURL != "" {
+		configData, _, _, _, err := uc.controller.GetConfiguration(ctx, agentID, savedResp.PollURL, "")
+		if err != nil {
+			uc.logger.Error("failed to fetch initial configuration after registration", zap.Error(err))
+		}
+		// store config if obtained
+		if configData != nil {
+			if err := uc.repo.UpdateConfig(configData); err != nil {
+				uc.logger.Error("failed to store initial configuration after registration", zap.Error(err))
+			}
+		}
+	}
+
 	// prefer saved response if available
 	if savedResp != nil {
 		return savedResp, nil
