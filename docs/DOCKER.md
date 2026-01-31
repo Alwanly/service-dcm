@@ -4,6 +4,7 @@
 > - [Local Development](#local-development-all-in-one) - All services on one machine
 > - [Standalone Controller](#standalone-controller-deployment) - Deploy Controller separately
 > - [Distributed Agent+Worker](#distributed-agent--worker-deployment) - Deploy Agent+Worker pairs
+> - [Podman Local Development](PODMAN.md) - Alternative local setup using Podman pods
 
 ## Deployment Scenarios
 
