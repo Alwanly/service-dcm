@@ -17,7 +17,7 @@ RUN go install github.com/swaggo/swag/cmd/swag@latest
 COPY . .
 
 # Generate swagger documentation
-RUN swag init -g cmd/controller/main.go -o docs/controller
+RUN swag init -g cmd/controller/main.go -o docs/controller --exclude internal/server/worker
 
 # Build with CGO enabled for SQLite
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o controller ./cmd/controller
@@ -47,11 +47,6 @@ RUN addgroup -g 1000 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
-
-# Set default environment variables
-ENV CONTROLLER_ADDR=:8080 \
-    DATABASE_PATH=/app/data/data.db \
-    POLL_INTERVAL=5
 
 
 ENTRYPOINT ["/app/controller"]

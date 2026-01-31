@@ -55,10 +55,10 @@ docker-compose -f docker-compose.agent-worker.yml --env-file .env.agent-worker u
 
 2. **Create environment file:**
   ```bash
-  cp .env.example .env
+  cp .env.local .env
   ```
 
-3. **Edit `.env` and set secure passwords:**
+3. **Edit `.env` and set secure passwords (especially Redis password):**
   ```bash
   # Change these values!
   ADMIN_PASSWORD=your-secure-admin-password
@@ -104,7 +104,7 @@ This guide explains how to build, run, and manage the Service Distribute Managem
 
 2. **Create environment file:**
    ```bash
-   cp .env.example .env
+   cp .env.local .env
    ```
 
 3. **Edit `.env` and set secure passwords:**
@@ -112,6 +112,7 @@ This guide explains how to build, run, and manage the Service Distribute Managem
    # Change these values!
    ADMIN_PASSWORD=your-secure-admin-password
    AGENT_PASSWORD=your-secure-agent-password
+   REDIS_PASSWORD=your-secure-redis-password
    ```
 
 4. **Start all services:**
@@ -131,24 +132,25 @@ This guide explains how to build, run, and manage the Service Distribute Managem
 
 ## Architecture
 
-The system consists of three services:
+The system consists of four services:
 
 - **Controller** (Port 8080): Central management service with SQLite database
 - **Worker** (Port 8082): Configuration execution service
-- **Agent** (No exposed ports): Polling service that bridges controller and worker
+- **Agent** (Port 8081, internal): Polling service that bridges controller and worker
+- **Redis** (Port 6379): Optional pub/sub for push notifications
 
 ```
 ┌──────────┐         ┌────────────┐         ┌────────┐
 │  Agent   │────────▶│ Controller │────────▶│ SQLite │
-│ (Client) │         │   :8080    │         │   DB   │
-└──────────┘         └────────────┘         └────────┘
-     │
-     │
-     ▼
-┌──────────┐
-│  Worker  │
-│  :8082   │
-└──────────┘
+│  :8081   │◀────────│   :8080    │         │   DB   │
+└──────────┘    │    └────────────┘         └────────┘
+     │          │           │
+     │          └───────────┼──────────┐
+     ▼                      ▼          ▼
+┌──────────┐         ┌────────────────────┐
+│  Worker  │         │  Redis (Optional)  │
+│  :8082   │         │      :6379         │
+└──────────┘         └────────────────────┘
 ```
 
 ## Prerequisites
@@ -188,6 +190,16 @@ All services are configured via environment variables defined in `.env` file:
 |----------|---------|-------------|
 | `WORKER_ADDR` | `:8082` | Worker listen address |
 | `REQUEST_TIMEOUT` | `10` | HTTP request timeout (seconds) |
+
+### Redis Variables (Optional)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_HOST` | `redis` | Redis server hostname |
+| `REDIS_PORT` | `6379` | Redis server port |
+| `REDIS_PASSWORD` | - | Redis authentication password |
+| `REDIS_DB` | `0` | Redis database number |
+
+**Note:** Redis is optional. When configured, it enables push notifications for instant configuration updates. If Redis is not available, the system falls back to polling mode.
 
 ## Building Images
 
@@ -350,14 +362,24 @@ docker run --rm -it \
 ## Networking
 
 ### Network Details
+
+#### All-In-One Setup (docker-compose.yml)
 - **Network Name:** `sdm-network`
 - **Driver:** bridge
 - **Internal DNS:** Services accessible by container name
 
-### Service DNS Names
+**Service DNS Names:**
 - `controller` → Controller service
 - `worker` → Worker service
 - `agent` → Agent service
+- `redis` → Redis service
+
+#### Controller Only (docker-compose.controller.yml)
+- **Network Name:** `sdm-controller-network`
+
+#### Agent-Worker (docker-compose.agent-worker.yml)
+- **Network Name:** `sdm-agent-worker-network`
+- **Connection to Controller:** Via `CONTROLLER_URL` environment variable (HTTP)
 
 ### Testing Network Connectivity
 ```bash

@@ -31,3 +31,6 @@ bin/
 
 # Database SQLite files
 data/
+
+# Environment files
+.env

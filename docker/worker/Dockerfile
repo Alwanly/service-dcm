@@ -14,7 +14,7 @@ RUN go install github.com/swaggo/swag/cmd/swag@latest
 COPY . .
 
 # Generate swagger documentation
-RUN swag init -g cmd/worker/main.go -o docs/worker
+RUN swag init -g cmd/worker/main.go -o docs/worker --exclude internal/server/controller
 
 # Build worker (no CGO needed)
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o worker ./cmd/worker
@@ -36,10 +36,6 @@ RUN addgroup -g 1000 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
-
-# Set default environment variables
-ENV WORKER_ADDR=:8082 \
-    REQUEST_TIMEOUT=10
 
 # Expose worker port
 EXPOSE 8082

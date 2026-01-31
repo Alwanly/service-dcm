@@ -11,6 +11,7 @@ import (
 	"github.com/Alwanly/service-distribute-management/pkg/deps"
 	"github.com/Alwanly/service-distribute-management/pkg/logger"
 	"github.com/Alwanly/service-distribute-management/pkg/poll"
+	"github.com/gofiber/fiber/v2"
 
 	"go.uber.org/zap"
 )
@@ -37,6 +38,8 @@ func NewHandler(d deps.App, config *config.AgentConfig) *Handler {
 	}
 
 	// registration is performed at startup; do not register periodic register task here
+	// Health check endpoint (no auth required)
+	d.Fiber.Get("/health", h.health)
 
 	return h
 }
@@ -99,4 +102,10 @@ func (h *Handler) GetConfigure(ctx context.Context, log *logger.CanonicalLogger)
 		log.Info("configuration applied", zap.String("etag", cfg.ETag))
 	}
 	return nil
+}
+
+func (h *Handler) health(c *fiber.Ctx) error {
+	logger.AddToContext(c.UserContext(), logger.String(logger.FieldOperation, "health_check"))
+
+	return c.JSON(fiber.Map{"status": "healthy"})
 }
