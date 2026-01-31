@@ -2,7 +2,7 @@ package dto
 
 type SetConfigAgentRequest struct {
 	URl   string `json:"url" example:"http://example.com/api" validate:"required,url"`
-	Proxy string `json:"proxy" example:"http://proxy.example.com:8080" validate:"omitempty,url"`
+	Proxy string `json:"proxy" example:"http://proxy.example.com:8080" validate:"omitempty"`
 }
 
 type GetConfigAgentRequest struct {
