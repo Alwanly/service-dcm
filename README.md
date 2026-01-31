@@ -17,7 +17,8 @@ Distributed configuration management system with controller, agent, and worker s
 
 2. Create environment file:
    ```bash
-   cp .env.example .env
+   cp .env .env.local
+   # Or use the .env file created during setup
    ```
 
 3. Edit `.env` and set secure passwords:
@@ -25,6 +26,7 @@ Distributed configuration management system with controller, agent, and worker s
    # IMPORTANT: Change default passwords!
    ADMIN_PASSWORD=your-secure-password
    AGENT_PASSWORD=your-secure-agent-password
+   REDIS_PASSWORD=your-secure-redis-password
    ```
 
 4. Start all services:
@@ -48,6 +50,7 @@ For detailed Docker documentation, see [docs/DOCKER.md](docs/DOCKER.md).
 - **Controller**: http://localhost:8080 - Central management service
 - **Worker**: http://localhost:8082 - Configuration execution service
 - **Agent**: Internal client connecting controller and worker
+- **Redis**: http://localhost:6379 - Optional pub/sub for push notifications
 
 ## Development
 
