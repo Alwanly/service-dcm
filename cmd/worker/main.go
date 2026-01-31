@@ -3,13 +3,6 @@ package main
 // @title           Service Distribute Management - Worker API
 // @version         1.0
 // @description     Worker service for distributed configuration management system. Receives configuration from agents and proxies requests to target URLs.
-// @termsOfService  http://swagger.io/terms/
-// @contact.name   API Support
-// @contact.url    http://www.example.com/support
-// @contact.email  support@example.com
-// @license.name  Apache 2.0
-// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
-// @host      localhost:8082
 // @BasePath  /
 
 import (

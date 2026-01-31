@@ -3,13 +3,6 @@ package main
 // @title           Service Distribute Management - Controller API
 // @version         1.0
 // @description     Controller service for distributed configuration management system. Manages agent registration and worker configuration distribution.
-// @termsOfService  http://swagger.io/terms/
-// @contact.name   API Support
-// @contact.url    http://www.example.com/support
-// @contact.email  support@example.com
-// @license.name  Apache 2.0
-// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
-// @host      localhost:8080
 // @BasePath  /
 // @securityDefinitions.basic  BasicAuth
 
@@ -76,6 +69,10 @@ func main() {
 		log.WithError(err).Fatal("failed to migrate database")
 	}
 	log.Info("database migrations applied successfully")
+
+	if err := database.SeedInitialData(db); err != nil {
+		log.WithError(err).Fatal("failed to seed initial data into database")
+	}
 
 	app := fiber.New(fiber.Config{
 		AppName:               "Controller Service",
