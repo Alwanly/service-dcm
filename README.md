@@ -35,7 +35,6 @@ The system supports both push-based (Redis pub/sub) and poll-based configuration
 ### For Docker Deployment
 - **Docker Engine**: 20.10 or higher
 - **Docker Compose**: 2.0 or higher
-- **Disk Space**: Minimum 100MB for images and data
 - **Ports**: 8080 (Controller), 8082 (Worker), 6379 (Redis - optional)
 
 ### For Local Development
@@ -48,17 +47,9 @@ The system supports both push-based (Redis pub/sub) and poll-based configuration
 - **Git**: For version control
 - **SQLite**: Included in Go dependencies (no separate installation needed)
 
-### System Requirements
-- **CPU**: 1 core minimum, 2+ cores recommended for production
-- **Memory**: 512MB minimum, 1GB+ recommended for production
-- **Network**: Outbound access from Agent to Controller, Agent to Worker
-- **OS**: Linux, macOS, or Windows (with WSL2 for Docker)
-
 ---
 
 ## Quick Start
-
-### Docker Deployment (Recommended)
 
 ### Docker Deployment (Recommended)
 
@@ -71,7 +62,7 @@ The system supports both push-based (Redis pub/sub) and poll-based configuration
 
 2. Create environment file:
    ```bash
-   cp .env .env.local
+   cp .env.example .env.local
    # Or use the .env file created during setup
    ```
 
@@ -1084,17 +1075,3 @@ The generated files are located in:
 - **[Worker API Swagger](http://localhost:8082/swagger/index.html)** - Interactive API documentation (when running)
 - **[Controller API Swagger](http://localhost:8080/swagger/index.html)** - Interactive API documentation (when running)
 - **[Agent-Worker Deployment](docs/agent-worker/README.md)** - Distributed Agent+Worker pair deployment
-
-### Quick Links
-
-| Documentation | Description |
-|---------------|-------------|
-| [README.md](README.md) | This file - Project overview and quick start |
-| [DOCKER.md](docs/DOCKER.md) | Docker deployment guide |
-| [ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment variables reference |
-
----
-
-## License
-
-[Add your license here]
