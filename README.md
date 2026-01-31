@@ -415,7 +415,7 @@ graph TB
     UC_Worker --> HTTPClient_W
     HTTPClient_W -->|Proxy Request| Target
 ```
-![image](docs\images\architecture-diagram-2026-01-31-131736.png)
+![architecture-diagram](https://github.com/Alwanly/service-dcm/blob/master/docs/images/architecture-diagram-2026-01-31-131736.png?raw=true)
 
 
 ### Configuration Flow
@@ -442,7 +442,7 @@ sequenceDiagram
         Controller-->>Agent: 200 OK
     end
 ```
-![image](docs\images\sequence-agent-resgitration-diagram-2026-01-31-131544.png)
+![sequence-agent-regis](https://github.com/Alwanly/service-dcm/blob/master/docs/images/sequence-agent-resgitration-diagram-2026-01-31-131544.png?raw=true)
 
 #### Configuration Distribution Sequence
 
@@ -481,7 +481,7 @@ sequenceDiagram
         Worker-->>Agent: 304 Not Modified
     end
 ```
-![image](docs\images\sequence-diagram-2026-01-31-131323.png)
+![sequence-diagram](https://raw.githubusercontent.com/Alwanly/service-dcm/refs/heads/master/docs/images/sequence-diagram-2026-01-31-131323.png?raw=true)
 
 ### Polling and Pub/Sub Mechanism
 
