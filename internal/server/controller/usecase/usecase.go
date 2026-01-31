@@ -138,13 +138,6 @@ func (uc *UseCase) GetConfigForAgent(ctx context.Context, agentID string, etag s
 		return wrapper.ResponseFailed(http.StatusInternalServerError, "failed to get configuration ETag", err)
 	}
 
-	// If ETag matches, return 304 Not Modified
-	if latestETag == etag {
-		// Not modified
-		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
-		return wrapper.ResponseSuccess(http.StatusNotModified, nil)
-	}
-
 	// Get configuration data
 	configData, err := uc.Repo.GetConfig(ctx, latestETag)
 	if err != nil {
@@ -166,6 +159,13 @@ func (uc *UseCase) GetConfigForAgent(ctx context.Context, agentID string, etag s
 		ETag:                latestETag,
 		Config:              configData,
 		PollIntervalSeconds: pollInterval,
+	}
+
+	// If ETag matches, return 304 Not Modified
+	if latestETag == etag {
+		// Not modified
+		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
+		return wrapper.ResponseSuccess(http.StatusNotModified, response)
 	}
 
 	logger.AddToContext(ctx,

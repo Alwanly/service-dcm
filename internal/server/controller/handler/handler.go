@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+
 	"github.com/Alwanly/service-distribute-management/internal/config"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/dto"
 	"github.com/Alwanly/service-distribute-management/internal/server/controller/repository"
@@ -153,6 +155,10 @@ func (h *Handler) getConfig(c *fiber.Ctx) error {
 	// Get configuration for this agent
 	res := h.UseCase.GetConfigForAgent(c.UserContext(), agentID, etag)
 
+	// set header poll interval
+	if data, ok := res.Data.(dto.GetConfigAgentResponse); ok {
+		c.Set("X-Poll-Interval-Seconds", strconv.Itoa(*data.PollIntervalSeconds))
+	}
 	// Handle 304 Not Modified
 	if res.Code == fiber.StatusNotModified {
 		return c.SendStatus(fiber.StatusNotModified)

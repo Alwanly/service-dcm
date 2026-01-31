@@ -81,11 +81,16 @@ func (p *poller) pollLoop(ctx context.Context, name string, fetchFunc FetchFunc,
 			p.logger.Info("poll loop stopped", zap.String("name", name))
 			return
 		case <-ticker.C:
-			pollLogger := p.logger.WithAgentID(name)
+			pollLogger := p.logger.Component(name)
+			logCtx := logger.NewLogContext()
+			logCtx.AddField(zap.String(logger.FieldPollName, name))
+			ctxPoll := logger.WithLogContext(ctx, logCtx)
 
-			if err := fetchFunc(ctx, pollLogger); err != nil {
+			if err := fetchFunc(ctxPoll, pollLogger); err != nil {
 				p.logger.Error("fetch function failed", zap.String("poll_name", name), zap.Error(err))
 			}
+			fields := logCtx.Fields()
+			pollLogger.Info("fetch function completed", fields...)
 		}
 	}
 }

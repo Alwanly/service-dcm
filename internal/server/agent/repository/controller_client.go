@@ -122,13 +122,23 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 	}
 	defer resp.Body.Close()
 
+	var pollIntervalSeconds *int
+	respHeader := resp.Header
+	if val := respHeader.Get("x-poll-interval-seconds"); val != "" {
+		var interval int
+		_, err := fmt.Sscanf(val, "%d", &interval)
+		if err == nil {
+			pollIntervalSeconds = &interval
+		}
+	}
+
 	if resp.StatusCode == http.StatusNotModified {
-		return nil, "", nil, true, nil
+		return nil, "", pollIntervalSeconds, true, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return nil, "", nil, false, fmt.Errorf("get configuration returned status %d: %s", resp.StatusCode, string(b))
+		return nil, "", pollIntervalSeconds, false, fmt.Errorf("get configuration returned status %d: %s", resp.StatusCode, string(b))
 	}
 
 	var respBody dto.ConfigurationResponse
@@ -155,7 +165,7 @@ func (c *controllerClient) GetConfiguration(ctx context.Context, agentID, pollUR
 		c.mutex.Unlock()
 	}
 
-	return &cfg, cfg.ETag, respBody.PollIntervalSeconds, false, nil
+	return &cfg, cfg.ETag, pollIntervalSeconds, false, nil
 }
 
 func (c *controllerClient) SendHeartbeat(ctx context.Context, logger *logger.CanonicalLogger) error {

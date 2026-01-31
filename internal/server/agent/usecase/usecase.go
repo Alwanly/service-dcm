@@ -153,6 +153,8 @@ func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuratio
 		zap.String("agent_id", agentID),
 		zap.String("poll_url", pollURL),
 		zap.String("if_none_match", curETag),
+		zap.String("new_etag", newETag),
+		zap.Intp("poll_interval_seconds", pollInterval),
 	)
 	if err != nil {
 		logger.AddToContext(ctx, zap.Error(err), zap.Bool(logger.FieldSuccess, false))
@@ -160,7 +162,7 @@ func (uc *UseCase) FetchConfiguration(ctx context.Context) (*models.Configuratio
 	}
 	if notModified {
 		logger.AddToContext(ctx, zap.Bool(logger.FieldSuccess, true), zap.String("result", "not_modified"))
-		return nil, nil, true, nil
+		return nil, pollInterval, true, nil
 	}
 
 	if cfg != nil {

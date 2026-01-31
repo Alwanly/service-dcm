@@ -63,9 +63,6 @@ func (h *Handler) GetConfigure(ctx context.Context, log *logger.CanonicalLogger)
 	if err != nil {
 		return err
 	}
-	if notModified {
-		return nil
-	}
 
 	// If controller provided a new poll interval, and it's different, update poller
 	if pollInterval != nil {
@@ -96,6 +93,10 @@ func (h *Handler) GetConfigure(ctx context.Context, log *logger.CanonicalLogger)
 				)
 			}
 		}
+	}
+
+	if notModified {
+		return nil
 	}
 
 	if cfg != nil {
